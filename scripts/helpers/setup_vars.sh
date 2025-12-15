@@ -121,7 +121,7 @@ toolset_file_name="toolset-$(echo "$IMAGE_VERSION" | sed 's/\.//g').json"
 image_folder="/var/tmp/imagegeneration-${IMAGE_OS}-${IMAGE_VERSION}"
 helper_script_folder="${image_folder}/helpers"
 installer_script_folder="${image_folder}/installers"
-imagedata_file="${image_folder}/imagedata.json"
+imagedata_file="/opt/runner-cache/.setup_info"
 
 # Export variables for use in other scripts
 # shellcheck disable=SC2034

@@ -275,7 +275,7 @@ prolog() {
   HOST_INSTALLER_SCRIPT_FOLDER="${HELPERS_DIR}/../../images/${HOST_OS_NAME}/scripts/build"
   BUILD_HOME="/home"
   BUILD_SHA=$(git rev-parse HEAD)
-  BUILD_DATE=$(date -u)
+  BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
   LXD_CONTAINER="${IMAGE_OS}:${IMAGE_VERSION}"
 
   mkdir -p ${EXPORT}
