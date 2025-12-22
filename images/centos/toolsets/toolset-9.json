@@ -11,7 +11,8 @@
                 "3.10.*",
                 "3.11.*",
                 "3.12.*",
-                "3.13.*"
+                "3.13.*",
+                "3.14.*"
             ]
         },
         {
@@ -30,9 +31,9 @@
             "platform" : "linux",
             "arch": "x64",
             "versions": [
-                "18.*",
                 "20.*",
-                "22.*"
+                "22.*",
+                "24.*"
             ]
         },
         {
@@ -43,7 +44,8 @@
             "versions": [
                 "1.22.*",
                 "1.23.*",
-                "1.24.*"
+                "1.24.*",
+                "1.25.*"
             ],
             "default": "1.24.*"
         },
@@ -69,7 +71,7 @@
     "java": {
         "default": "17",
         "versions": [ "11", "17", "21", "25"],
-        "maven": "3.9.11"
+        "maven": "3.9.12"
     },
     "android": {
         "cmdline-tools": "commandlinetools-linux-11076708_latest.zip",
@@ -83,12 +85,13 @@
         "addon_list": [
         ],
         "additional_tools": [
-            "cmake;3.31.5"
+            "cmake;3.31.5",
+            "cmake;4.1.2"
         ],
         "ndk": {
             "default": "27",
             "versions": [
-                "26", "27", "28"
+                "26", "27", "28", "29"
             ]
         }
     },
@@ -172,7 +175,7 @@
         "components": [
             {
                 "package": "containerd.io",
-                "version": "latest"
+                "version": "1.7.27-1"
             },
             {
                 "package": "docker-ce-cli",
@@ -195,7 +198,7 @@
             },
             {
                 "plugin": "compose",
-                "version": "2.29.0",
+                "version": "2.38.2",
                 "asset_map": {
                     "x86_64": "linux-x86_64",
                     "ppc64le": "linux-ppc64le",
@@ -217,7 +220,8 @@
     "dotnet": {
         "versions": [
             "8.0",
-            "9.0"
+            "9.0",
+            "10.0"
         ],
         "tools": [
             { "name": "nbgv", "test": "nbgv --version", "getversion" : "nbgv --version" }
