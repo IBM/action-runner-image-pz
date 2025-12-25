@@ -13,6 +13,7 @@ os_name=$(lsb_release -ds | sed "s/ /\\\n/g")
 os_version=$(lsb_release -rs)
 image_label="ubuntu-${os_version}"
 version_major=${os_version/.*/}
+# shellcheck disable=SC2034
 version_wo_dot=${os_version/./}
 
 github_url="https://github.com/IBM/action-runner-image-pz/blob/main/images"
