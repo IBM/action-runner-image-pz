@@ -21,7 +21,8 @@ case "$ARCH" in
 esac
 
 # Install the Homebrew on Linux
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)"
+# shellcheck disable=SC2016
+mkdir -p /home/linuxbrew/.linuxbrew && chown -R ubuntu:ubuntu /home/linuxbrew && su - ubuntu -c 'NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)"'
 
 # Invoke shellenv to make brew available during running session
 eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
