@@ -18,7 +18,8 @@ if [[ "$ARCH" == "ppc64le" || "$ARCH" == "s390x" ]]; then
 else
     # Install node modules
     node_modules=$(get_toolset_value '.node_modules[].name')
-    npm install -g "$node_modules"
+    # shellcheck disable=SC2086
+    npm install -g $node_modules
 fi
 
 echo "Creating the symlink for [now] command to vercel CLI"
