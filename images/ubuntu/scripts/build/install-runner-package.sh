@@ -31,3 +31,4 @@ archive_path=$(download_with_retry "$download_url")
 
 mkdir -p /opt/runner-cache
 mv "$archive_path" "/opt/runner-cache/$archive_name"
+sudo tar -xf /opt/runner-cache/*.tar.gz -C /opt/runner-cache
