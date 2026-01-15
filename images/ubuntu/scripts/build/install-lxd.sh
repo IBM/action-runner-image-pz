@@ -31,10 +31,10 @@ sudo snap refresh --hold lxd
 echo "Initializing LXD with preseed configuration..."
 if [[ -f "$INSTALLER_SCRIPT_FOLDER/lxd-preseed.yaml" ]]; then
     # shellcheck disable=SC2002
-    cat "$INSTALLER_SCRIPT_FOLDER/lxd-preseed.yaml" | sudo lxd init --preseed
+    cat "$INSTALLER_SCRIPT_FOLDER/lxd-preseed.yaml" | sudo /snap/bin/lxd init --preseed
 else
     echo "Warning: lxd-preseed.yaml not found. Initializing with defaults."
-    sudo lxd init --auto
+    sudo /snap/bin/lxd init --auto
 fi
 
 echo "LXD installation and initialization are complete!"
