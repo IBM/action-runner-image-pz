@@ -27,13 +27,48 @@ ensure_service_is_active snap.lxd.daemon
 # Hold the autorefresh for LXD as it can cause unwanted service-disruptions 
 sudo snap refresh --hold lxd
 
-# Initialize LXD using the preseed configuration file for automated setup.
+# Detect Environment (Host vs Container)
+# We default to 'host'
+ENV_TYPE="host"
+
+# Check using systemd-detect-virt (standard on most modern distros)
+# If it returns 'lxc', we are inside a container.
+if command -v systemd-detect-virt >/dev/null 2>&1; then
+    if [[ "$(systemd-detect-virt)" == "lxc" ]]; then
+        ENV_TYPE="container"
+    fi
+# Fallback check: Look at process 1 environment for container flag
+elif grep -qa "container=lxc" /proc/1/environ; then
+    ENV_TYPE="container"
+fi
+
+CONFIG_FILENAME="lxd_init_${ENV_TYPE}_${ARCH}.yml"
+CONFIG_PATH="$INSTALLER_SCRIPT_FOLDER/$CONFIG_FILENAME"
+
+echo "----------------------------------------"
+echo "LXD Initialization Setup"
+echo "Detected Architecture : $ARCH"
+echo "Detected Environment  : $ENV_TYPE"
+echo "Target Config File    : $CONFIG_FILENAME"
+echo "----------------------------------------"
+
 echo "Initializing LXD with preseed configuration..."
-if [[ -f "$INSTALLER_SCRIPT_FOLDER/lxd-preseed.yaml" ]]; then
+
+if [[ -f "$CONFIG_PATH" ]]; then
     # shellcheck disable=SC2002
-    cat "$INSTALLER_SCRIPT_FOLDER/lxd-preseed.yaml" | sudo /snap/bin/lxd init --preseed
+    cat "$CONFIG_PATH" | sudo /snap/bin/lxd init --preseed
+    
+    # Check if the command succeeded
+    # shellcheck disable=SC2181
+    if [[ $? -eq 0 ]]; then
+        echo "Success: LXD initialized using $CONFIG_FILENAME"
+    else
+        echo "Error: LXD initialization failed."
+        exit 1
+    fi
 else
-    echo "Warning: lxd-preseed.yaml not found. Initializing with defaults."
+    echo "Warning: $CONFIG_FILENAME not found at $INSTALLER_SCRIPT_FOLDER."
+    echo "Falling back to default auto initialization..."
     sudo /snap/bin/lxd init --auto
 fi
 
