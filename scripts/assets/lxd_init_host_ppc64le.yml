@@ -1,0 +1,49 @@
+config: {}
+networks:
+- config:
+    ipv4.address: auto
+    ipv4.nat: "true"
+    ipv6.address: auto
+    ipv6.nat: "true"
+  description: Default LXD bridge
+  name: lxdbr0
+  type: bridge
+  project: default
+storage_pools:
+- config:
+    lvm.thinpool_name: LXDThinPool
+    lvm.vg_name: default
+    size: 30GiB
+    source: /var/snap/lxd/common/lxd/disks/default.img
+    volume.size: 60GiB
+  description: Default storage pool
+  name: default
+  driver: lvm
+profiles:
+- config:
+    boot.autostart: "true"
+    linux.kernel_modules: ip_vs,ip_vs_rr,ip_vs_wrr,ip_vs_sh,ip_tables,ip6_tables,netlink_diag,nf_nat,overlay,br_netfilter
+    raw.lxc: |
+      lxc.mount.auto=proc:rw sys:rw cgroup:rw
+      lxc.cgroup.devices.allow=a
+      lxc.cap.drop=
+    security.nesting: "true"
+  description: Default LXD profile
+  devices:
+    eth0:
+      name: eth0
+      network: lxdbr0
+      type: nic
+    root:
+      path: /
+      pool: default
+      type: disk
+  name: default
+projects:
+- config:
+    features.images: "true"
+    features.networks: "true"
+    features.profiles: "true"
+    features.storage.volumes: "true"
+  description: Default LXD project
+  name: default
