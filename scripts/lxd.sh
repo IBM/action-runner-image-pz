@@ -90,6 +90,43 @@ build_image() {
   local BUILD_PREREQS_PATH
   BUILD_PREREQS_PATH="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
 
+  # Search for an existing image that matches the strict criteria:
+  # (commit, os, version, and setup)
+  # We use 'jq' to filter the JSON output of lxc image list.
+  local EXISTING_IMAGE_JSON
+  # shellcheck disable=SC2154
+  EXISTING_IMAGE_JSON=$(lxc image list --format=json | jq -r --arg commit "${BUILD_SHA}" --arg os "${clean_args[0]}" --arg ver "${clean_args[1]}" --arg setup "${clean_args[4]}" \
+    '.[] | select(
+        .properties["properties.build.commit"] == $commit and 
+        .properties["properties.build.os"] == $os and 
+        .properties["properties.build.version"] == $ver and 
+        .properties["properties.build.setup"] == $setup
+    )')
+
+  # Check if we found a match
+  if [[ -n "$EXISTING_IMAGE_JSON" ]]; then
+    echo "Idempotency Check: Found existing image matching Commit, OS, Version, and Setup."
+
+    local FINGERPRINT
+    FINGERPRINT=$(echo "$EXISTING_IMAGE_JSON" | jq -r '.fingerprint')
+
+    # Check if the specific alias we want is already assigned to this image
+    local ALIAS_MATCH
+    ALIAS_MATCH=$(echo "$EXISTING_IMAGE_JSON" | jq -r --arg alias "${IMAGE_ALIAS}" \
+        '.aliases[]? | select(.name == $alias) | .name')
+
+    if [[ -z "$ALIAS_MATCH" ]]; then
+        echo "Alias '${IMAGE_ALIAS}' does not exist for this image. Creating it now..."
+        # Create the alias for the old image
+        lxc image alias create "${IMAGE_ALIAS}" "${FINGERPRINT}"
+    else
+        echo "Alias '${IMAGE_ALIAS}' already exists on the image. Nothing to do."
+    fi
+
+    echo "Skipping build."
+    return 0
+  fi
+
   if [ ! -d "${BUILD_PREREQS_PATH}" ]; then
     msg "Check the BUILD_PREREQS_PATH specification" >&2
     return 3
@@ -218,6 +255,11 @@ build_image() {
           lxc publish "${BUILD_CONTAINER}/build-snapshot" -f --alias "${IMAGE_ALIAS}" \
               --compression none \
               description="GitHub Actions ${IMAGE_OS} ${IMAGE_VERSION} Runner for ${ARCH}" \
+              properties.build.os="${clean_args[0]}" \
+              properties.build.version="${clean_args[1]}" \
+              properties.build.type="${clean_args[2]}" \
+              properties.build.cpu="${clean_args[3]}" \
+              properties.build.setup="${clean_args[4]}" \
               properties.build.commit="${BUILD_SHA}" \
               properties.build.date="${BUILD_DATE}"
 
