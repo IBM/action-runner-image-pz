@@ -112,19 +112,35 @@ build_image() {
     lxc launch "${LXD_CONTAINER}" "${BUILD_CONTAINER}" --ephemeral
   fi
 
+  # Immediately map the container name to localhost to stop sudo warnings/timeouts
+  lxc exec "${BUILD_CONTAINER}" -- sh -c "echo '127.0.1.1 ${BUILD_CONTAINER}' >> /etc/hosts"
   lxc ls
 
   # Give container some time to wake up and remap the filesystem
+  msg "Waiting for container systemd to initialize..."
   for ((i = 0; i < 90; i++)); do
-    local CHECK
-    CHECK=$(lxc exec "${BUILD_CONTAINER}" -- stat "${BUILD_HOME}" 2>/dev/null || true)
-    if [ -n "${CHECK}" ]; then
+    # Check if filesystem is ready
+    local CHECK_FS
+    CHECK_FS=$(lxc exec "${BUILD_CONTAINER}" -- stat "${BUILD_HOME}" 2>/dev/null || true)
+    
+    # Check if Systemd/DBus is actually ready
+    # We ignore the exit code because it returns non-zero while booting
+    local CHECK_SYSTEMD
+    CHECK_SYSTEMD=$(lxc exec "${BUILD_CONTAINER}" -- systemctl is-system-running 2>/dev/null || true)
+
+    # We proceed if FS is ready AND systemd is 'running' or 'degraded' (degraded is common in containers, implies boot finished)
+    if [ -n "${CHECK_FS}" ] && [[ "${CHECK_SYSTEMD}" == "running" || "${CHECK_SYSTEMD}" == "degraded" ]]; then
+      msg "Container is fully operational."
       break
+    fi
+    
+    if [ $i -eq 89 ]; then
+       msg "Timeout waiting for systemd. Last state: ${CHECK_SYSTEMD}"
     fi
     sleep 2s
   done
 
-  if [ -z "${CHECK}" ]; then
+  if [ -z "${CHECK_FS}" ]; then
     msg "Unable to start the build container" >&2
     return 2
   fi
