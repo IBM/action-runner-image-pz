@@ -12,13 +12,30 @@ image_version_minor=$(echo "$image_version" | cut -d "." -f 2)
 os_name=$(lsb_release -ds | sed "s/ /\\\n/g")
 os_version=$(lsb_release -rs)
 image_label="ubuntu-${os_version}"
+# shellcheck disable=SC2034
 version_major=${os_version/.*/}
 # shellcheck disable=SC2034
 version_wo_dot=${os_version/./}
 
-github_url="https://github.com/IBM/action-runner-image-pz/blob/main/images"
+REPO_OWNER="IBM"
+REPO_NAME="action-runner-image-pz"
+BRANCH="main"
+
+api_release_response=$(curl -s "https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases/latest")
+git_tag=$(echo "$api_release_response" | jq -r .tag_name)
+if [ "$git_tag" == "null" ] || [ -z "$git_tag" ]; then
+    echo "Warning: No release found, defaulting to 'latest'"
+    git_tag="latest"
+fi
+
+build_sha=$(curl -s "https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/commits/${BRANCH}" | jq -r .sha)
+
+github_url="https://github.com/${REPO_OWNER}/${REPO_NAME}/blob/${BRANCH}/images"
 software_url="${github_url}/ubuntu/toolsets/toolset-${image_version_major}${image_version_minor}.json"
-releaseUrl="https://github.com/IBM/action-runner-image-pz/releases/tag/ubuntu${version_major}%2F${image_version_major}.${image_version_minor}"
+
+# URL-encode forward slashes (/) to %2F
+tag_slug=${git_tag//\//%2F}
+releaseUrl="https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/tag/${tag_slug}"
 
 ## Following are custom values for P/Z self-hosted runners
 ## todo: extend this with CI build number
@@ -30,7 +47,7 @@ cat <<EOF > "$imagedata_file"
 [
   {
     "group": "Runner Image Provisioner",
-    "detail": "Commit: ${BUILD_SHA}\nBuild Date: ${image_build_date}\nBuilder ID: ${image_builder_id}"
+    "detail": "Commit: ${build_sha}\nBuild Date: ${image_build_date}\nBuilder ID: ${image_builder_id}"
   },
   {
     "group": "Operating System",
