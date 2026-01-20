@@ -20,11 +20,13 @@ echo "Enabling and starting snapd.socket..."
 sudo systemctl enable --now snapd.socket
 
 # Create symbolic link for snap directory if not already exists
-if [ ! -L /snap ]; then
+if [ -L /snap ]; then
+    echo "Symbolic link for /snap already exists."
+elif [ -e /snap ]; then
+    echo "/snap exists but is a directory/file, not a symbolic link."
+else
     echo "Creating symbolic link for /snap..."
     sudo ln -s /var/lib/snapd/snap /snap
-else
-    echo "Symbolic link for /snap already exists."
 fi
 
 # Ensure /snap/bin is in the PATH
