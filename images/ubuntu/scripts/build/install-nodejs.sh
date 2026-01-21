@@ -23,7 +23,7 @@ else
 fi
 
 echo "Creating the symlink for [now] command to vercel CLI"
-ln -s /usr/local/bin/vercel /usr/local/bin/now
+ln -sf /usr/local/bin/vercel /usr/local/bin/now
 
 # fix global modules installation as regular user
 # related issue https://github.com/actions/runner-images/issues/3727
