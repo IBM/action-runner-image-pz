@@ -29,5 +29,6 @@ download_url=$(resolve_github_release_asset_url "actions/runner" "test(\"actions
 archive_name="${download_url##*/}"
 archive_path=$(download_with_retry "$download_url")
 
+rm -rf /opt/runner-cache
 mkdir -p /opt/runner-cache
 mv "$archive_path" "/opt/runner-cache/$archive_name"
