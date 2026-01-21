@@ -76,7 +76,7 @@ install_open_jdk() {
     touch "${java_toolcache_version_path}/${ARCH}.complete"
 
     # Create symlink for Java
-    ln -s "${java_version_path}" "${java_toolcache_version_path}/${ARCH}"
+    ln -sfn "${java_version_path}" "${java_toolcache_version_path}/${ARCH}"
 
     # add extra permissions to be able execute command without sudo
     chmod -R 777 /usr/lib/jvm
@@ -115,9 +115,13 @@ set_etc_environment_variable "ANT_HOME" "/usr/share/ant"
 # Install Maven
 mavenVersion=$(get_toolset_value '.java.maven')
 mavenDownloadUrl="https://dlcdn.apache.org/maven/maven-3/${mavenVersion}/binaries/apache-maven-${mavenVersion}-bin.zip"
-maven_archive_path=$(download_with_retry "$mavenDownloadUrl")
-unzip -qq -d /usr/share "$maven_archive_path"
-ln -s /usr/share/apache-maven-"${mavenVersion}"/bin/mvn /usr/bin/mvn
+
+if [ ! -d "/usr/share/apache-maven-${mavenVersion}" ]; then
+    maven_archive_path=$(download_with_retry "$mavenDownloadUrl")
+    unzip -qq -d /usr/share "$maven_archive_path"
+fi
+
+ln -sf /usr/share/apache-maven-"${mavenVersion}"/bin/mvn /usr/bin/mvn
 
 # Install Gradle
 # This script founds the latest gradle release from https://services.gradle.org/versions/all
@@ -127,9 +131,14 @@ gradleLatestVersion=$(echo "${gradleJson}" | jq -r '.[] | select(.version | cont
 gradleDownloadUrl=$(echo "${gradleJson}" | jq -r ".[] | select(.version==\"$gradleLatestVersion\") | .downloadUrl")
 echo "gradleUrl=${gradleDownloadUrl}"
 echo "gradleVersion=${gradleLatestVersion}"
-gradle_archive_path=$(download_with_retry "$gradleDownloadUrl")
-unzip -qq -d /usr/share "$gradle_archive_path"
-ln -s /usr/share/gradle-"${gradleLatestVersion}"/bin/gradle /usr/bin/gradle
+
+if [ ! -d "/usr/share/gradle-${gradleLatestVersion}" ]; then
+    gradle_archive_path=$(download_with_retry "$gradleDownloadUrl")
+    unzip -qq -d /usr/share "$gradle_archive_path"
+fi
+
+ln -sf /usr/share/gradle-"${gradleLatestVersion}"/bin/gradle /usr/bin/gradle
+
 gradle_home_dir=$(find /usr/share -depth -maxdepth 1 -name "gradle*")
 set_etc_environment_variable "GRADLE_HOME" "${gradle_home_dir}"
 
