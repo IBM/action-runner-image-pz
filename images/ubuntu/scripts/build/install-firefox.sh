@@ -44,6 +44,6 @@ if [ "$ARCH" != "ppc64le" ] && [ "$ARCH" != "s390x" ]; then
     tar -xzf "$driver_archive_path" -C $GECKODRIVER_DIR
     
     chmod +x $GECKODRIVER_BIN
-    ln -s "$GECKODRIVER_BIN" /usr/bin/
+    ln -sf "$GECKODRIVER_BIN" /usr/bin/
     set_etc_environment_variable "GECKOWEBDRIVER" "${GECKODRIVER_DIR}"
 fi

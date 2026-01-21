@@ -78,8 +78,8 @@ install_pypy() {
     cd "$pypy_toolcache_version_arch_path"/bin
 
     # Starting from PyPy 7.3.4 these links are already included in the package
-    [ -f ./"$python_major" ] || ln -s "$pypy_major" "$python_major"
-    [ -f ./python ] || ln -s "$python_major" python
+    [ -f ./"$python_major" ] || ln -sf "$pypy_major" "$python_major"
+    [ -f ./python ] || ln -sf "$python_major" python
 
     chmod +x ./python ./"$python_major"
 

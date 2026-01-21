@@ -54,7 +54,7 @@ edgedriver_archive_path=$(download_with_retry "$edgedriver_url")
 
 unzip -qq "$edgedriver_archive_path" -d "$EDGEDRIVER_DIR"
 chmod +x $edgedriver_bin
-ln -s $edgedriver_bin /usr/bin
+ln -sf $edgedriver_bin /usr/bin
 
 set_etc_environment_variable "EDGEWEBDRIVER" "${EDGEDRIVER_DIR}"
 

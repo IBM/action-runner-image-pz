@@ -52,7 +52,7 @@ else
         $install_script_path --version "$sdk" --install-dir /usr/share/dotnet --no-path
     done
     ## Dotnet installer doesn't create symlinks to executable or modify PATH
-    ln -s /usr/share/dotnet/dotnet /usr/bin/dotnet
+    ln -sf /usr/share/dotnet/dotnet /usr/bin/dotnet
 fi
 
 set_etc_environment_variable DOTNET_SKIP_FIRST_TIME_EXPERIENCE 1
