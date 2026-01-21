@@ -15,6 +15,30 @@ msg() {
     echo $(date +"%Y-%m-%dT%H:%M:%S%:z") "$*"
 }
 
+check_idempotency() {
+    header "Checking Idempotency"
+    
+    msg "Fetching latest upstream version from ${RUNNERREPO}..."
+    UPSTREAM_TAG=$(git ls-remote --tags --refs --sort='v:refname' "${RUNNERREPO}" | tail -n1 | awk -F/ '{print $NF}')
+    
+    UPSTREAM_VER="${UPSTREAM_TAG#v}"
+    msg "Latest Upstream Version: ${UPSTREAM_VER}"
+
+    CURRENT_VER="none"
+    if [ -f "/opt/runner-cache/bin/Runner.Listener" ]; then
+        CURRENT_VER=$(/opt/runner-cache/bin/Runner.Listener --version 2>/dev/null || echo "error")
+    fi
+
+    msg "Current Installed Version: ${CURRENT_VER}"
+
+    if [ "${UPSTREAM_VER}" == "${CURRENT_VER}" ]; then
+        header "Versions match (${UPSTREAM_VER}). Skipping build."
+        exit 0
+    else
+        msg "Versions do not match or runner not installed. Proceeding with build..."
+    fi
+}
+
 patch_runner() {
     header "Cloning repo and Patching runner"
     cd /tmp
@@ -58,6 +82,7 @@ post_cleanup() {
 }
 
 run() {
+    check_idempotency
     pre_cleanup
     patch_runner
     build_runner
