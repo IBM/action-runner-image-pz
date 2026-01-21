@@ -26,7 +26,7 @@ elif [ -e /snap ]; then
     echo "/snap exists but is a directory/file, not a symbolic link."
 else
     echo "Creating symbolic link for /snap..."
-    sudo ln -s /var/lib/snapd/snap /snap
+    sudo ln -sf /var/lib/snapd/snap /snap
 fi
 
 # Ensure /snap/bin is in the PATH

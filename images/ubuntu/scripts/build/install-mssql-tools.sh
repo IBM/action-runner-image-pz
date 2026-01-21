@@ -22,7 +22,7 @@ export ACCEPT_EULA=Y
 update_dpkgs
 install_dpkgs mssql-tools unixodbc-dev
 apt-get -f install
-ln -s /opt/mssql-tools/bin/* /usr/local/bin/
+ln -sf /opt/mssql-tools/bin/* /usr/local/bin/
 
 
 

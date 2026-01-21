@@ -75,7 +75,7 @@ driver_archive_path=$(download_with_retry "$chromedriver_url")
 unzip -qq "$driver_archive_path" -d /usr/local/share
 
 chmod +x $chromedriver_bin
-ln -s "$chromedriver_bin" /usr/bin/
+ln -sf "$chromedriver_bin" /usr/bin/
 set_etc_environment_variable "CHROMEWEBDRIVER" "${CHROMEDRIVER_DIR}"
 
 # Download and unpack Chromium
@@ -90,6 +90,6 @@ chromium_archive_path=$(download_with_retry "$chromium_url")
 mkdir $CHROMIUM_DIR
 unzip -qq "$chromium_archive_path" -d $CHROMIUM_DIR
 
-ln -s $chromium_bin /usr/bin/chromium
-ln -s $chromium_bin /usr/bin/chromium-browser
+ln -sf $chromium_bin /usr/bin/chromium
+ln -sf $chromium_bin /usr/bin/chromium-browser
 

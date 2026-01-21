@@ -60,8 +60,8 @@ swift_lib_root="$SWIFT_INSTALL_ROOT/usr/lib"
 mv "/tmp/${swift_release_name}" $SWIFT_INSTALL_ROOT
 mkdir -p /usr/local/lib
 
-ln -s "$swift_bin_root/swift" /usr/local/bin/swift
-ln -s "$swift_bin_root/swiftc" /usr/local/bin/swiftc
-ln -s "$swift_lib_root/libsourcekitdInProc.so" /usr/local/lib/libsourcekitdInProc.so
+ln -sf "$swift_bin_root/swift" /usr/local/bin/swift
+ln -sf "$swift_bin_root/swiftc" /usr/local/bin/swiftc
+ln -sf "$swift_lib_root/libsourcekitdInProc.so" /usr/local/lib/libsourcekitdInProc.so
 
 set_etc_environment_variable "SWIFT_PATH" "${swift_bin_root}"
