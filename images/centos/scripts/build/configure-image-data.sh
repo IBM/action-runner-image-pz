@@ -22,19 +22,20 @@ BRANCH="main"
 
 api_release_response=$(curl -s "https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases/latest")
 git_tag=$(echo "$api_release_response" | jq -r .tag_name)
-if [ "$git_tag" == "null" ] || [ -z "$git_tag" ]; then
-    echo "Warning: No release found, defaulting to 'latest'"
-    git_tag="latest"
-fi
 
 build_sha=$(curl -s "https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/commits/${BRANCH}" | jq -r .sha)
 
 github_url="https://github.com/${REPO_OWNER}/${REPO_NAME}/blob/${BRANCH}/images"
 software_url="${github_url}/centos/toolsets/toolset-${image_version_major}${image_version_minor}.json"
 
-# URL-encode forward slashes (/) to %2F
-tag_slug=${git_tag//\//%2F}
-releaseUrl="https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/tag/${tag_slug}"
+if [ "$git_tag" != "null" ] && [ -n "$git_tag" ]; then
+    echo "Release found: ${git_tag}"
+    tag_slug=${git_tag//\//%2F} # URL encode slashes
+    releaseUrl="https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/tag/${tag_slug}"
+else
+    echo "Warning: No release found. Falling back to commit SHA: ${build_sha}"
+    releaseUrl="https://github.com/${REPO_OWNER}/${REPO_NAME}/tree/${build_sha}"
+fi
 
 runner_image_version="$(date  +%Y%m%d)"
 image_build_date=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
