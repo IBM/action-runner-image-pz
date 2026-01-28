@@ -7,6 +7,9 @@
 source "$HELPER_SCRIPTS"/etc-environment.sh
 source "$HELPER_SCRIPTS"/os.sh
 
+if [ -d "/opt/post-generation" ]; then
+    rm -rf "/opt/post-generation"
+fi
 mv -f "${IMAGE_FOLDER}/post-generation" /opt
 
 echo "chmod -R 777 /opt"

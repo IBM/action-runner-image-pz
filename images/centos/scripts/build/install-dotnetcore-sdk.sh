@@ -52,7 +52,7 @@ else
         $install_script_path --version "$sdk" --install-dir /usr/share/dotnet --no-path
     done
     ## Dotnet installer doesn't create symlinks to executable or modify PATH
-    ln -s /usr/share/dotnet/dotnet /usr/bin/dotnet
+    ln -sf /usr/share/dotnet/dotnet /usr/bin/dotnet
 fi
 
 set_etc_environment_variable DOTNET_SKIP_FIRST_TIME_EXPERIENCE 1
@@ -64,6 +64,10 @@ prepend_etc_environment_path '$HOME/.dotnet/tools'
 # Install .Net tools
 # shellcheck disable=SC2068
 for dotnet_tool in ${dotnet_tools[@]}; do
-    echo "Installing dotnet tool $dotnet_tool"
-    dotnet tool install "$dotnet_tool" --tool-path '/etc/skel/.dotnet/tools'
+    if dotnet tool list --tool-path '/etc/skel/.dotnet/tools' | grep -q -w "$dotnet_tool"; then
+        echo "Tool '$dotnet_tool' is already installed."
+    else
+        echo "Installing dotnet tool $dotnet_tool"
+        dotnet tool install "$dotnet_tool" --tool-path '/etc/skel/.dotnet/tools'
+    fi
 done
