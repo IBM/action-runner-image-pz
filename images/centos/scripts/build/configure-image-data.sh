@@ -16,10 +16,26 @@ os_name=$(cat /etc/redhat-release | sed "s/ /\\\n/g") # Get OS name
 os_version=$(rpm -E %{rhel}) # Get CentOS version
 image_label="centos-${os_version}" # Set image label
 
-# Construct documentation and release URLs
-github_url="https://github.com/IBM/action-runner-image-pz/blob/main/images"
+REPO_OWNER="IBM"
+REPO_NAME="action-runner-image-pz"
+BRANCH="main"
+
+api_release_response=$(curl -s "https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases/latest")
+git_tag=$(echo "$api_release_response" | jq -r .tag_name)
+
+build_sha=$(curl -s "https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/commits/${BRANCH}" | jq -r .sha)
+
+github_url="https://github.com/${REPO_OWNER}/${REPO_NAME}/blob/${BRANCH}/images"
 software_url="${github_url}/centos/toolsets/toolset-${image_version_major}${image_version_minor}.json"
-releaseUrl="https://github.com/actions/runner-images/releases/tag/centos${os_version}%2F${image_version_major}.${image_version_minor}"
+
+if [ "$git_tag" != "null" ] && [ -n "$git_tag" ]; then
+    echo "Release found: ${git_tag}"
+    tag_slug=${git_tag//\//%2F} # URL encode slashes
+    releaseUrl="https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/tag/${tag_slug}"
+else
+    echo "Warning: No release found. Falling back to commit SHA: ${build_sha}"
+    releaseUrl="https://github.com/${REPO_OWNER}/${REPO_NAME}/tree/${build_sha}"
+fi
 
 runner_image_version="$(date  +%Y%m%d)"
 image_build_date=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
@@ -30,7 +46,7 @@ cat <<EOF > "$imagedata_file"
 [
   {
     "group": "Runner Image Provisioner",
-    "detail": "Commit: ${BUILD_SHA}\nBuild Date: ${image_build_date}\nBuilder ID: ${image_builder_id}"
+    "detail": "Commit: ${build_sha}\nBuild Date: ${image_build_date}\nBuilder ID: ${image_builder_id}"
   },
   {
     "group": "Operating System",
