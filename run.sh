@@ -10,10 +10,10 @@ Usage: $(basename "$0") [OPTIONS]
 
 Description:
   This is an interactive wrapper script designed to facilitate the setup of 
-  various environments including VM (Host), LXD, Docker, and Podman.
+  various environments including VM (Host), LXD Container, LXD VM, Docker, and Podman.
   
   It guides the user through a menu-driven process to select:
-  1. Target Environment (VM, LXD, Docker, Podman)
+  1. Target Environment (VM, LXD Container, LXD VM, Docker, Podman)
   2. Operating System & Version
   3. Setup Type (Minimal vs Complete)
   4. Infrastructure specific arguments (Worker size, Architecture)
@@ -24,14 +24,14 @@ Options:
 -------------------------------------------------------------------------
 IMPORTANT NOTE ON SUBSCRIPTS:
   This script acts as a runner. It delegates the actual configuration logic 
-  to specific scripts located in the 'scripts/' directory (e.g., scripts/lxd.sh).
+  to specific scripts located in the 'scripts/' directory (e.g., scripts/lxd_container.sh).
 
   If you need detailed information about specific parameters, flags, or 
   underlying logic for a specific environment, please run the help command 
   on that subscript directly.
 
   Examples:
-    scripts/lxd.sh --help
+    scripts/lxd_container.sh --help
 -------------------------------------------------------------------------
 EOF
 }
@@ -90,7 +90,7 @@ get_os_details() {
     
     local os_options=()
     case "$env" in
-        lxd)    os_options=("Ubuntu" "Back");;
+        lxd_container|lxd_vm)    os_options=("Ubuntu" "Back");;
         *)      os_options=("Ubuntu" "CentOS/AlmaLinux" "Back");;
     esac
 
@@ -161,7 +161,7 @@ get_lxd_args() {
 main() {
     while true; do
         # `|| true` prevents script exit if user presses Ctrl+D
-        main_choice=$(select_menu "Select the setup type: " "VM (host machine)" "LXD" "Docker" "Podman" "Exit") || true
+        main_choice=$(select_menu "Select the setup type: " "VM (host machine)" "LXD Container" "LXD VM" "Docker" "Podman" "Exit") || true
 
         local env=""
         local os_details=""
@@ -190,8 +190,8 @@ main() {
                 fi
                 ;;
 
-            "LXD"|"Docker"|"Podman")
-                env=$(echo "$main_choice" | tr '[:upper:]' '[:lower:]')
+            "LXD Container"|"LXD VM"|"Docker"|"Podman")
+                env=$(echo "$main_choice" | tr '[:upper:]' '[:lower:]' | tr ' ' '_')
                 os_details=$(get_os_details "$env") || continue
                 ;;
 
@@ -228,7 +228,7 @@ main() {
         setup_type=$(get_setup_type "$env" "$os") || continue
         
         # Get extra args only if the environment is LXD
-        if [[ "$env" == "lxd" ]]; then
+        if [[ "$env" == "lxd_container" || "$env" == "lxd_vm" ]]; then
             lxd_args=$(get_lxd_args)
             read -r worker_arg arch_arg <<< "$lxd_args"
         fi
