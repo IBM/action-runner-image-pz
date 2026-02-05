@@ -34,4 +34,4 @@ jobs:
 
       - name: Build Image
         run: | 
-          scripts/lxd.sh "${{ matrix.os }}" "${{ matrix.version }}" "" "" "${{ matrix.setup_type }}" --skip-snap-lxd --skip-lxd-snapshot 
+          scripts/lxd_container.sh "${{ matrix.os }}" "${{ matrix.version }}" "" "" "${{ matrix.setup_type }}" --skip-snap-lxd --skip-lxd-snapshot 
