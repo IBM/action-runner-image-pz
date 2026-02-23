@@ -2,7 +2,7 @@
 
 Github Actions LXD Image Builder
 
-Formerly known as GapLib, this repo is a robust collection of setup scripts for configuring custom GitHub Actions runners. These scripts are designed to seamlessly adapt to updates in `actions/runner`, ensuring compatibility and optimal performance across diverse environments, including **VM (host machine)**, **LXD**, **Docker**, and **Podman**.
+Formerly known as GapLib, this repo is a robust collection of setup scripts for configuring custom GitHub Actions runners. These scripts are designed to seamlessly adapt to updates in `actions/runner`, ensuring compatibility and optimal performance across diverse environments, including **VM (host machine)** , **LXD Containers**, **LXD VMs**, **Docker**, and **Podman**.
 
 This repository also includes source code to create VM images for GitHub-hosted runners widely used in Actions workflows. This image supports multiple operating systems and architectures, providing a versatile and scalable solution to meet diverse project requirements.
 
@@ -31,10 +31,11 @@ This repository also includes source code to create VM images for GitHub-hosted 
 
 ### **Supported Environments**
 
-This runner image supports multiple environments on IBM hardware for seamless runner setup:
+This runner image supports multiple environments on IBM hardware for a seamless runner setup:
 
-- **VM (host machine)**: Direct setup on virtual or host machines.
-- **LXD**: Lightweight container-based virtualization.
+- **VM (host machine)** : Direct setup on virtual or host machines.
+- **LXD Container**: Lightweight, system container-based virtualization.
+- **LXD VM**: Full virtual machines managed via LXD for enhanced isolation.
 - **Docker**: Industry-standard containerization platform.
 - **Podman**: Docker-compatible, daemonless container management.
 
@@ -59,7 +60,7 @@ This runner image supports multiple environments on IBM hardware for seamless ru
 
 ### **Key Features**
 
-- **Interactive Menu**: Guides users through setup options (VM, LXD, Docker, or Podman).
+- **Interactive Menu**: Guides users through setup options (VM, LXD Container, LXD VM, Docker, or Podman).
 - **Architecture Detection**: Ensures compatibility with supported architectures.
 - **Custom OS and Version Selection**: Allows users to tailor setup to specific environments.
 - **Setup Type Options**: Supports **Minimal** (basic setup) and **Complete** (full setup) configurations.
@@ -79,7 +80,7 @@ This runner image supports multiple environments on IBM hardware for seamless ru
     ```
     
 3. Follow the prompts to:
-    - Select your environment (**VM**, **LXD**, **Docker**, or **Podman**).
+    - Select your environment (**VM**, **LXD Container**, **LXD VM**, **Docker**, or **Podman**).
     - Choose your OS and version.
     - Specify the setup type (**Minimal** or **Complete**).
 
@@ -91,13 +92,15 @@ This runner image supports multiple environments on IBM hardware for seamless ru
 
 The script provides the following main options:
 
-```
-1. VM (host machine)
-2. LXD
-3. Docker
-4. Podman
-5. Exit
+Plaintext
 
+```
+1) VM (host machine)
+2) LXD Container
+3) LXD VM
+4) Docker
+5) Podman
+6) Exit
 ```
 
 Select an option to proceed with the setup.
@@ -126,7 +129,7 @@ If the script encounters an unsupported architecture, it will provide these opti
 ## **Requirements**
 
 - **Bash Shell**: Required to execute the scripts.
-- **Sudo Privileges**: Necessary for certain setup tasks depending on the environment.
+- **Sudo Privileges**: Necessary for certain setup tasks depending on the chosen environment.
 
 ---
 
