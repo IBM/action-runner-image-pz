@@ -9,6 +9,16 @@
 source "$HELPER_SCRIPTS"/install.sh
 source "$HELPER_SCRIPTS"/etc-environment.sh
 
+# Set architecture-specific variables using a case statement for clarity
+case "$ARCH" in
+    "ppc64le" | "s390x")
+        echo "No actions defined for $ARCH architecture."
+        exit 0
+        ;;
+    *)
+        ;;
+esac
+
 # Mozillateam PPA is added manually because sometimes
 # launchpad portal sends empty answer when trying to add it automatically
 
@@ -32,18 +42,16 @@ echo "mozillateam $REPO_URL" >> "$HELPER_SCRIPTS"/apt-sources.txt
 # Default firefox local is en_GB
 echo 'pref("intl.locale.requested","en_US");' >> "/usr/lib/firefox/browser/defaults/preferences/syspref.js"
     
-if [ "$ARCH" != "ppc64le" ] && [ "$ARCH" != "s390x" ]; then
-    # Download and unpack latest release of geckodriver
-    download_url=$(resolve_github_release_asset_url "mozilla/geckodriver" "test(\"linux64.tar.gz$\")" "latest")
-    driver_archive_path=$(download_with_retry "$download_url")
-    
-    GECKODRIVER_DIR="/usr/local/share/gecko_driver"
-    GECKODRIVER_BIN="$GECKODRIVER_DIR/geckodriver"
-    
-    mkdir -p $GECKODRIVER_DIR
-    tar -xzf "$driver_archive_path" -C $GECKODRIVER_DIR
-    
-    chmod +x $GECKODRIVER_BIN
-    ln -sf "$GECKODRIVER_BIN" /usr/bin/
-    set_etc_environment_variable "GECKOWEBDRIVER" "${GECKODRIVER_DIR}"
-fi
+# Download and unpack latest release of geckodriver
+download_url=$(resolve_github_release_asset_url "mozilla/geckodriver" "test(\"linux64.tar.gz$\")" "latest")
+driver_archive_path=$(download_with_retry "$download_url")
+
+GECKODRIVER_DIR="/usr/local/share/gecko_driver"
+GECKODRIVER_BIN="$GECKODRIVER_DIR/geckodriver"
+
+mkdir -p $GECKODRIVER_DIR
+tar -xzf "$driver_archive_path" -C $GECKODRIVER_DIR
+
+chmod +x $GECKODRIVER_BIN
+ln -sf "$GECKODRIVER_BIN" /usr/bin/
+set_etc_environment_variable "GECKOWEBDRIVER" "${GECKODRIVER_DIR}"
