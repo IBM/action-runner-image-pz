@@ -19,6 +19,7 @@ usage() {
     echo "  --skip-lxd-img-primer   Skip LXD image primer"
     echo "  --skip-lxd-publish      Skip LXD publish"
     echo "  --skip-lxd-snapshot     Skip LXD snapshot"
+    echo "  --delete-lxd-img        Delete the existing LXD image before building"
     echo "  -h, --help              Show this help"
     echo ""
     # Use return 1 instead of exit 1 because this script is sourced
@@ -32,6 +33,7 @@ SKIP_LXD_IMG_EXPORT=false
 SKIP_LXD_IMG_PRIMER=false
 SKIP_LXD_PUBLISH=false
 SKIP_LXD_SNAPSHOT=false
+DELETE_LXD_IMG=false
 ARCH=${ARCH:-$(uname -m)}
 PATCH_FILE="${PATCH_FILE:-runner-sdk8-${ARCH}.patch}"
 
@@ -71,6 +73,11 @@ while [[ $# -gt 0 ]]; do
         --skip-lxd-snapshot)
             # shellcheck disable=SC2034
             SKIP_LXD_SNAPSHOT=true
+            forward_args+=("$1")
+            ;;
+        --delete-lxd-img)
+            # shellcheck disable=SC2034
+            DELETE_LXD_IMG=true
             forward_args+=("$1")
             ;;
         -h|--help)

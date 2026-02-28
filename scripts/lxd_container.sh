@@ -83,6 +83,20 @@ cleanup_builder() {
   fi
 }
 
+cleanup_old_image() {
+    local IMAGE_ALIAS="$1"
+    msg "Checking for existing alias ${IMAGE_ALIAS}..."
+    if lxc image info "${IMAGE_ALIAS}" >/dev/null 2>&1; then
+        # Extract fingerprint
+        OLD_FINGERPRINT=$(lxc image info "${IMAGE_ALIAS}" | awk '/^Fingerprint:/ {print $2; exit}')
+        
+        if [[ -n "${OLD_FINGERPRINT}" ]]; then
+            msg "Deleting old image ${OLD_FINGERPRINT} to make room for alias ${IMAGE_ALIAS}..."
+            lxc image delete "${OLD_FINGERPRINT}" || true
+        fi
+    fi
+}
+
 wait_for_container() {
   local container_name="$1"
   msg "Waiting for ${container_name} systemd to initialize..."
@@ -152,6 +166,11 @@ build_image() {
 
     echo "Skipping build."
     return 0
+  fi
+
+  if [[ "${DELETE_LXD_IMG}" == "true" ]]; then
+      msg "Delete flag detected. Attempting to delete existing image with alias ${IMAGE_ALIAS} before building."
+      cleanup_old_image "${IMAGE_ALIAS}"
   fi
 
   if [ ! -d "${BUILD_PREREQS_PATH}" ]; then
@@ -256,16 +275,7 @@ build_image() {
           msg "Lock acquired. Starting atomic publish sequence."
 
           # A. Cleanup Old Image
-          msg "Checking for existing alias ${IMAGE_ALIAS}..."
-          if lxc image info "${IMAGE_ALIAS}" >/dev/null 2>&1; then
-              # Extract fingerprint
-              OLD_FINGERPRINT=$(lxc image info "${IMAGE_ALIAS}" | awk '/^Fingerprint:/ {print $2; exit}')
-              
-              if [[ -n "${OLD_FINGERPRINT}" ]]; then
-                  msg "Deleting old image ${OLD_FINGERPRINT} to make room for alias ${IMAGE_ALIAS}..."
-                  lxc image delete "${OLD_FINGERPRINT}" || true
-              fi
-          fi
+          cleanup_old_image "${IMAGE_ALIAS}"
 
           # B. Publish New Image
           msg "Publishing snapshot as new image: ${IMAGE_ALIAS}"
