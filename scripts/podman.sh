@@ -13,7 +13,7 @@ source "${HELPERS_DIR}"/run_script.sh
 ensure_podman() {
     if ! command -v podman &> /dev/null; then
         echo "Podman is not installed. Attempting to install Podman..."
-        if run_script "${HOST_INSTALLER_SCRIPT_FOLDER}/install-podman.sh" "DOCKERHUB_PULL_IMAGES" "HELPER_SCRIPTS" "INSTALLER_SCRIPT_FOLDER" "ARCH"; then
+        if run_script "${HOST_INSTALLER_SCRIPT_FOLDER}/install-podman.sh" "HELPER_SCRIPTS" "INSTALLER_SCRIPT_FOLDER" "ARCH"; then
             echo "Podman installed successfully."
         else
             echo "Failed to install Podman. Please check your system configuration." >&2

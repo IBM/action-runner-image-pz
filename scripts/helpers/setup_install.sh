@@ -198,7 +198,7 @@ if [ "${SKIP_SNAP_LXD:-false}" != "true" ]; then
     run_script "${INSTALLER_SCRIPT_FOLDER}/configure-snap.sh" "HELPER_SCRIPTS" "ARCH"
 fi
 
-run_script "${INSTALLER_SCRIPT_FOLDER}/install-docker.sh" "DOCKERHUB_PULL_IMAGES" "HELPER_SCRIPTS" "INSTALLER_SCRIPT_FOLDER" "ARCH"
+run_script "${INSTALLER_SCRIPT_FOLDER}/install-docker.sh" "HELPER_SCRIPTS" "INSTALLER_SCRIPT_FOLDER" "ARCH"
     
 run_script "${INSTALLER_SCRIPT_FOLDER}/install-pipx-packages.sh" "HELPER_SCRIPTS" "INSTALLER_SCRIPT_FOLDER" "ARCH"
 

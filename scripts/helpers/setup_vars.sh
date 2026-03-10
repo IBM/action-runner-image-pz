@@ -141,5 +141,3 @@ IMAGEDATA_FILE="${imagedata_file}"
 DEBIAN_FRONTEND="noninteractive"
 # shellcheck disable=SC2034
 INSTALLER_SCRIPT_FOLDER="${installer_script_folder}"
-# shellcheck disable=SC2034
-DOCKERHUB_PULL_IMAGES="NO"

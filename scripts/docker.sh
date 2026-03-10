@@ -13,7 +13,7 @@ source "${HELPERS_DIR}"/run_script.sh
 ensure_docker() {
     if ! command -v docker &> /dev/null; then
         echo "Docker is not installed. Attempting to install Docker..."
-        if run_script "${HOST_INSTALLER_SCRIPT_FOLDER}/install-docker.sh" "DOCKERHUB_PULL_IMAGES" "HELPER_SCRIPTS" "INSTALLER_SCRIPT_FOLDER" "ARCH"; then
+        if run_script "${HOST_INSTALLER_SCRIPT_FOLDER}/install-docker.sh" "HELPER_SCRIPTS" "INSTALLER_SCRIPT_FOLDER" "ARCH"; then
             echo "Docker installed successfully."
         else
             echo "Failed to install Docker. Please check your system configuration." >&2

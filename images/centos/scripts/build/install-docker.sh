@@ -7,6 +7,8 @@
 # Source the helpers for use with the script
 # shellcheck disable=SC1091
 source "$HELPER_SCRIPTS"/install.sh
+# shellcheck disable=SC2086
+source $HELPER_SCRIPTS/os.sh
 
 # Set architecture-specific variables using a case statement for clarity
 case "$ARCH" in
@@ -106,28 +108,19 @@ systemctl is-enabled --quiet docker.service || systemctl enable docker.service
 sleep 10
 docker info
 
-if [[ "${DOCKERHUB_PULL_IMAGES:-yes}" == "yes" ]]; then
-    # If credentials are provided, attempt to log into Docker Hub
-    # with a paid account to avoid Docker Hub's rate limit.
-    if [[ "${DOCKERHUB_LOGIN}" ]] && [[ "${DOCKERHUB_PASSWORD}" ]]; then
-        docker login --username "${DOCKERHUB_LOGIN}" --password "${DOCKERHUB_PASSWORD}"
+if [[ "$ARCH" != "ppc64le" && "$ARCH" != "s390x" ]]; then 
+    if ! is_centos9; then
+        # Pull Dependabot docker image
+        docker pull ghcr.io/dependabot/dependabot-updater-core:latest
+
+        # Pull AW docker images
+        docker pull ghcr.io/github/gh-aw-mcpg:latest
+        docker pull ghcr.io/github/gh-aw-firewall/agent:latest
+        docker pull ghcr.io/github/gh-aw-firewall/api-proxy:latest
+        docker pull ghcr.io/github/gh-aw-firewall/squid:latest
+        docker pull ghcr.io/github/github-mcp-server:latest
     fi
 
-    # Pull images
-    images=$(get_toolset_value '.docker.images[]')
-    for image in $images; do
-        docker pull "$image"
-    done
-
-    # Always attempt to logout so we do not leave our credentials on the built
-    # image. Logout _should_ return a zero exit code even if no credentials were
-    # stored from earlier.
-    docker logout
-else
-    echo "Skipping docker images pulling"
-fi
-
-if [[ "$ARCH" != "ppc64le" && "$ARCH" != "s390x" ]]; then 
     # Download amazon-ecr-credential-helper
     aws_latest_release_url="https://api.github.com/repos/awslabs/amazon-ecr-credential-helper/releases/latest"
     aws_helper_url=$(curl -fsSL "${aws_latest_release_url}" | jq -r '.body' | awk -v arch="$package_arch" -F'[()]' '$0 ~ "linux-" arch {print $2}')
