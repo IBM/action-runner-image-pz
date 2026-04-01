@@ -8,6 +8,7 @@
 # shellcheck disable=SC1091
 source "$HELPER_SCRIPTS"/install.sh
 source "$HELPER_SCRIPTS"/etc-environment.sh
+APT_UPDATED=0
 
 create_java_environment_variable() {
     local java_version=$1
@@ -22,7 +23,10 @@ create_java_environment_variable() {
         "x86_64")
             local install_path_pattern="/usr/lib/jvm/temurin-${java_version}-jdk-amd64"
             ;;
-        "s390x" | *)
+        "s390x")
+            local install_path_pattern="/usr/lib/jvm/java-${java_version}-openjdk-s390x"
+            ;;
+        *)
             local install_path_pattern="/usr/lib/jvm/temurin-${java_version}-jdk-${ARCH}"
             ;;
     esac
@@ -31,7 +35,10 @@ create_java_environment_variable() {
         echo "Setting up JAVA_HOME variable to ${install_path_pattern}"
         set_etc_environment_variable "JAVA_HOME" "${install_path_pattern}"
         echo "Setting up default symlink"
-        update-java-alternatives -s "${install_path_pattern}"
+        if command -v update-java-alternatives >/dev/null 2>&1; then
+            update-java-alternatives -s "${install_path_pattern}" || true
+        fi
+
     fi
 
     echo "Setting up JAVA_HOME_${java_version}_${ARCH} variable to ${install_path_pattern}"
@@ -40,19 +47,40 @@ create_java_environment_variable() {
 
 install_open_jdk() {
     local java_version=$1
+    if [[ "$ARCH" == "s390x" && "$APT_UPDATED" -eq 0 ]]; then
+        echo "Running apt-get update once for s390x..."
+        apt-get update
+        APT_UPDATED=1
+    fi
+   
 
-    # Install Java from PPA repositories.
-    install_dpkgs temurin-"${java_version}"-jdk=\*
-
-    if [ "$ARCH" = "ppc64le" ]; then
-        java_version_path="/usr/lib/jvm/temurin-${java_version}-jdk-ppc64el"
-    elif [ "$ARCH" = "s390x" ]; then
-        java_version_path="/usr/lib/jvm/temurin-${java_version}-jdk-s390x"
+    if [[ "$ARCH" = "s390x" ]]; then
+        echo "temurin not supported for s390x architecture, falling back to OpenJDK from Ubuntu repositories"
+        apt-get install -y openjdk-"${java_version}"-jdk
+        java_version_path="/usr/lib/jvm/java-${java_version}-openjdk-s390x"
     else
-        java_version_path="/usr/lib/jvm/temurin-${java_version}-jdk-amd64"
+
+        # Install Java from PPA repositories.
+        install_dpkgs temurin-"${java_version}"-jdk=\*
+
+        if [ "$ARCH" = "ppc64le" ]; then
+            java_version_path="/usr/lib/jvm/temurin-${java_version}-jdk-ppc64el"
+        else
+            java_version_path="/usr/lib/jvm/temurin-${java_version}-jdk-amd64"
+        fi
+
+    fi
+
+    if [ ! -d "$java_version_path" ]; then
+        echo "Java installation failed for ARCH=$ARCH"
+        exit 1
     fi
     
-    java_toolcache_path="${AGENT_TOOLSDIRECTORY}/Java_Temurin-Hotspot_jdk"
+    if [[ "$ARCH" == "s390x" ]]; then
+        java_toolcache_path="${AGENT_TOOLSDIRECTORY}/Java_OpenJDK_jdk"
+    else
+        java_toolcache_path="${AGENT_TOOLSDIRECTORY}/Java_Temurin-Hotspot_jdk"
+    fi
 
     # shellcheck disable=SC2002
     full_java_version=$(cat "${java_version_path}/release" | grep "^SEMANTIC" | cut -d "=" -f 2 | tr -d "\"" | tr "+" "-")
