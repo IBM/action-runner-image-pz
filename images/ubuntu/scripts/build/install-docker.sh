@@ -102,7 +102,9 @@ cat << EOF > /etc/docker/daemon.json
   "storage-driver": "overlay2",
   "exec-opts": [
     "native.cgroupdriver=systemd"
-  ]
+  ],
+  "mtu": 1460,
+  "dns": ["8.8.8.8", "1.1.1.1"]
 }
 EOF
 
