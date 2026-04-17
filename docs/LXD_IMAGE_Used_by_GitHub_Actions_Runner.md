@@ -84,6 +84,39 @@ The script will handle the required steps to configure the environment and build
 
 ---
 
+### **Next Steps: Configure and Start the Runner**
+
+Once the LXD image has been built successfully, follow these steps to create, configure and launch the GitHub Actions runner inside the container.
+
+1. Create the runner container
+   Use `lxd launch` to create the runner container from the image built in the previous step.
+   ```bash
+   lxd launch <container-name> <image-name>
+   ```
+   You can use additional flags based on your requirements (privileged vs non-privileged, nested virtualization etc.)
+    
+2. Exec into the LXD Container
+   Use `lxc exec` to open a shell inside the container and switch immediately to the `runner` user:
+   ```bash
+   lxc exec <container-name> -- su - runner
+   ```
+
+3. Once you are in the runner userspace, you can cd to the `/opt/runner-cache` directory which should host all the necessary files for creating a self-hosted GitHub Actions runner.
+   ```bash
+   cd /opt/runner-cache
+   ls
+   ```
+4. Now, to establish this as a self-hosted runner, navigate to your GitHub repo where you want this setup and go to it's settings page. Here, under Actions>Runners tab, you can create a
+   new self-hosted runner. Select `Linux, x86` as your option and copy the `./config.sh` line along with the token. This token is necessary for linking the self-hosted runner with the repo.
+   ```bash
+   ./config.sh --url https://github.com/<org>/<repo> --token <token>
+   ```
+   You can find additional information on runner configuration in the [official GitHub documentation](https://docs.github.com/en/actions/how-tos/manage-runners/self-hosted-runners/add-runners#adding-a-self-hosted-runner-to-a-repository)
+5. Post runner configuration, you are now all set to running your first workflow on Power/Z architecture!
+   Just execute the `run.sh` script which activates the listener for the runner service and starts an active HTTP-poll session between GitHub and your runner.
+   Make sure to use the correct `runs-on:` label (used during convifguration of the runner) in your workflow to direct the payload to the LXD runner.
+
+
 ### **Key Notes**
 
 - Ensure that the required permissions and tools are available before running the script.
