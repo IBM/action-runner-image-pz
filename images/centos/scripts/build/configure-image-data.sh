@@ -20,10 +20,10 @@ REPO_OWNER="IBM"
 REPO_NAME="action-runner-image-pz"
 BRANCH="main"
 
-api_release_response=$(curl -s "https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases/latest")
+api_release_response=$(curl -s ${GITHUB_TOKEN:+-H "Authorization: Bearer ${GITHUB_TOKEN}"} "https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases/latest")
 git_tag=$(echo "$api_release_response" | jq -r .tag_name)
 
-build_sha=$(curl -s "https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/commits/${BRANCH}" | jq -r .sha)
+build_sha=$(curl -s ${GITHUB_TOKEN:+-H "Authorization: Bearer ${GITHUB_TOKEN}"} "https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/commits/${BRANCH}" | jq -r .sha)
 
 github_url="https://github.com/${REPO_OWNER}/${REPO_NAME}/blob/${BRANCH}/images"
 software_url="${github_url}/centos/toolsets/toolset-${image_version_major}${image_version_minor}.json"

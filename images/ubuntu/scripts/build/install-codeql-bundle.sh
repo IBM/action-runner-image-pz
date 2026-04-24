@@ -25,7 +25,7 @@ case "$ARCH" in
 esac
 
 # Retrieve the latest major version of the CodeQL Action to use in the base URL for downloading the bundle.
-releases=$(curl -s "https://api.github.com/repos/github/codeql-action/releases")
+releases=$(curl -s ${GITHUB_TOKEN:+-H "Authorization: Bearer ${GITHUB_TOKEN}"} "https://api.github.com/repos/github/codeql-action/releases")
 
 # Get the release tags starting with v[0-9] and sort them in descending order, then parse the first one to get the major version.
 codeql_action_latest_major_version=$(echo "$releases" |

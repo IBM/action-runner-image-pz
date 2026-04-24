@@ -9,6 +9,11 @@ run_script() {
     # Initialize an empty array to store the environment variables
     local env_vars=()
 
+    # Always include GITHUB_TOKEN if it's set in the environment
+    if [[ -n "${GITHUB_TOKEN}" ]]; then
+        env_vars+=("GITHUB_TOKEN=${GITHUB_TOKEN}")
+    fi
+
     # Loop through the environment variable names and construct the env_vars array
     for var_name in "$@"; do
         if [[ -n "${!var_name}" ]]; then

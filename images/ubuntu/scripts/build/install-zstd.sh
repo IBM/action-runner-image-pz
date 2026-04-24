@@ -10,7 +10,7 @@
 source "$HELPER_SCRIPTS"/install.sh
 
 # Download zstd
-release_tag=$(curl -fsSL https://api.github.com/repos/facebook/zstd/releases/latest | jq -r '.tag_name')
+release_tag=$(curl -fsSL ${GITHUB_TOKEN:+-H "Authorization: Bearer ${GITHUB_TOKEN}"} https://api.github.com/repos/facebook/zstd/releases/latest | jq -r '.tag_name')
 release_name="zstd-${release_tag//v}"
 download_url="https://github.com/facebook/zstd/releases/download/${release_tag}/${release_name}.tar.gz"
 archive_path=$(download_with_retry "${download_url}")
