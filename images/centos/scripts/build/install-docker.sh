@@ -123,7 +123,7 @@ if [[ "$ARCH" != "ppc64le" && "$ARCH" != "s390x" ]]; then
 
     # Download amazon-ecr-credential-helper
     aws_latest_release_url="https://api.github.com/repos/awslabs/amazon-ecr-credential-helper/releases/latest"
-    aws_helper_url=$(curl -fsSL "${aws_latest_release_url}" | jq -r '.body' | awk -v arch="$package_arch" -F'[()]' '$0 ~ "linux-" arch {print $2}')
+    aws_helper_url=$(curl -fsSL ${GITHUB_TOKEN:+-H "Authorization: Bearer ${GITHUB_TOKEN}"} "${aws_latest_release_url}" | jq -r '.body' | awk -v arch="$package_arch" -F'[()]' '$0 ~ "linux-" arch {print $2}')
     aws_helper_binary_path=$(download_with_retry "$aws_helper_url")
 
     # Supply chain security - amazon-ecr-credential-helper
