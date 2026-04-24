@@ -141,3 +141,9 @@ IMAGEDATA_FILE="${imagedata_file}"
 DEBIAN_FRONTEND="noninteractive"
 # shellcheck disable=SC2034
 INSTALLER_SCRIPT_FOLDER="${installer_script_folder}"
+
+# Export GITHUB_TOKEN if it exists in the environment
+# This ensures the token is available to all sourced scripts
+if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+    export GITHUB_TOKEN
+fi
