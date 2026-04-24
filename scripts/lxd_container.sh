@@ -223,7 +223,7 @@ build_image() {
   msg "Running setup_install.sh (as root)"
   # shellcheck disable=SC1073
   # shellcheck disable=SC2154
-  if ! lxc exec "${BUILD_CONTAINER}" --user 0 --group 0 -- \
+  if ! lxc exec "${BUILD_CONTAINER}" --user 0 --group 0 ${GITHUB_TOKEN:+--env GITHUB_TOKEN="${GITHUB_TOKEN}"} -- \
     bash -c 'exec "$@"' _ "${helper_script_folder}/setup_install.sh" "${clean_args[@]}" "${forward_args[@]}"; then
 
     msg "!!! The installation script inside the container failed. Triggering cleanup. !!!" >&2

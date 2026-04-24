@@ -12,7 +12,7 @@ export NVM_DIR="/etc/skel/.nvm"
 mkdir -p "$NVM_DIR"
 
 if [ ! -f "$NVM_DIR/nvm.sh" ]; then
-    nvm_version=$(curl -fsSL https://api.github.com/repos/nvm-sh/nvm/releases/latest | jq -r '.tag_name')
+    nvm_version=$(curl -fsSL ${GITHUB_TOKEN:+-H "Authorization: Bearer ${GITHUB_TOKEN}"} https://api.github.com/repos/nvm-sh/nvm/releases/latest | jq -r '.tag_name')
     curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/"$nvm_version"/install.sh | bash
 else
     echo "NVM already installed at $NVM_DIR. Skipping installation."
