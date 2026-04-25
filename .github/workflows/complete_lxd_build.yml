@@ -33,5 +33,7 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Build Image
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: | 
           scripts/lxd_container.sh "${{ matrix.os }}" "${{ matrix.version }}" "" "" "${{ matrix.setup_type }}" --skip-snap-lxd --skip-lxd-snapshot 
