@@ -228,7 +228,7 @@ index aa330b67..4b288fe3 100644
          <NoWarn>NU1701;NU1603;SYSLIB0050;SYSLIB0051</NoWarn>
          <Version>$(Version)</Version>
 diff --git a/src/Test/L0/ConstantGenerationL0.cs b/src/Test/L0/ConstantGenerationL0.cs
-index f3c1b8f9..9a1c5aa0 100644
+index 4ff2dbb3..251be20f 100644
 --- a/src/Test/L0/ConstantGenerationL0.cs
 +++ b/src/Test/L0/ConstantGenerationL0.cs
 @@ -20,6 +20,8 @@ namespace GitHub.Runner.Common.Tests
@@ -372,4 +372,4 @@ index 056a312e..3f9a3679 100644
          <Exec Command="%22$(DesktopMSBuild)%22 Runner.Service/Windows/RunnerService.csproj /p:Configuration=$(BUILDCONFIG) /p:PackageRuntime=$(PackageRuntime) /p:OutputPath=%22$(MSBuildProjectDirectory)/../_layout/bin%22" ConsoleToMSBuild="true" Condition="'$(PackageRuntime)' == 'win-x64' Or '$(PackageRuntime)' == 'win-x86' Or '$(PackageRuntime)' == 'win-arm64'" />
      </Target>
  
-# From upstream commit: 4550db3c89dddf3c31c7f4e5e86215ee8a8217e2
+# From upstream commit: 5ed0c52e217eb958e0627c6c36b3f5f9c834815c
