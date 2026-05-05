@@ -17,6 +17,7 @@ This repository also includes source code to create VM images for GitHub-hosted 
     - [run.sh](#runsh)
     - [Key Features](#key-features)
 - [Usage](#usage)
+- [Upgrading Runner Binary (VM/Host Machine)](#upgrading-runner-binary-vmhost-machine)
 - [Setup Options](#setup-options)
     - [Main Menu](#main-menu)
     - [OS and Version Selection](#os-and-version-selection)
@@ -83,6 +84,26 @@ This runner image supports multiple environments on IBM hardware for a seamless 
     - Select your environment (**VM**, **LXD Container**, **LXD VM**, **Docker**, or **Podman**).
     - Choose your OS and version.
     - Specify the setup type (**Minimal** or **Complete**).
+
+---
+
+## **Upgrading Runner Binary (VM/Host Machine)**
+
+**This upgrade feature is specifically designed for VM (host machine) setups.** For container-based or LXD-based deployments, please rebuild the image instead.
+
+If you need to upgrade the GitHub Actions runner binary to the latest version on your VM or host machine, simply rerun the setup script:
+
+```bash
+bash run.sh
+```
+
+The script will automatically:
+- Detect the existing runner installation on the host
+- Download and install the latest runner binary
+- Fix any configuration issues
+- Preserve your existing runner registration and settings
+
+**Note**: For VM (host machine) setups, snap and LXD installation are disabled by default to avoid conflicts. The upgrade process will maintain this configuration.
 
 ---
 
