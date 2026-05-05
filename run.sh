@@ -71,6 +71,10 @@ run_setup() {
     # Use an array for safer argument passing
     local script_args=("${os}" "${version}" "${worker_arg}" "${arch_arg}" "${setup_type}")
 
+    if [[ "$env" == "vm" ]]; then
+        script_args=("${script_args[@]}" "--skip-snap-lxd")
+    fi
+    
     # The script to be run inside the new shell.
     # It sources the target script and passes along all of its own arguments ("$@").
     local inner_script=". 'scripts/${env}.sh' \"\$@\""
