@@ -13,7 +13,7 @@ storage_pools:
 - config:
     lvm.thinpool_name: LXDThinPool
     lvm.vg_name: default
-    size: 30GiB
+    size: 100GiB
     source: /var/snap/lxd/common/lxd/disks/default.img
     volume.size: 60GiB
   description: Default storage pool
