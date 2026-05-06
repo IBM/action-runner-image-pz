@@ -266,6 +266,22 @@ configure_memory_resources() {
     allocate_mb="$target_memory_mb"
   fi
   
+  # Align memory to 256 MiB boundary for QEMU compatibility (required for ppc64)
+  # This prevents errors like: "qemu-system-ppc64: Memory size 0xf4200000 is not aligned to 256 MiB"
+  local alignment_mb=256
+  local aligned_mb=$((allocate_mb / alignment_mb * alignment_mb))
+  
+  if [[ "$aligned_mb" -ne "$allocate_mb" ]]; then
+    echo "Note: Aligning memory from ${allocate_mb}MiB to ${aligned_mb}MiB (256 MiB boundary for QEMU compatibility)"
+    allocate_mb="$aligned_mb"
+  fi
+  
+  # Ensure we have at least 256 MiB after alignment
+  if [[ "$allocate_mb" -lt "$alignment_mb" ]]; then
+    echo "Error: After alignment, memory would be less than ${alignment_mb}MiB. Cannot allocate."
+    return 1
+  fi
+  
   # Apply the limit to the VM
   echo "Allocating ${allocate_mb}MiB to '${vm_name}'..."
   
