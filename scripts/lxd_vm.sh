@@ -185,17 +185,96 @@ build_image() {
   # shellcheck disable=SC2064
   trap "cleanup_builder '${BUILD_CONTAINER}'" INT TERM EXIT
 
-  msg "Launching build container ${BUILD_CONTAINER} from image ${LXD_CONTAINER}..."
+  msg "Initializing build container ${BUILD_CONTAINER} from image ${LXD_CONTAINER}..."
 
   if [[ "${LXD_DEBUG:-false}" == "true" ]]; then
     # Non-ephemeral for debugging
-    lxc launch "${LXD_CONTAINER}" "${BUILD_CONTAINER}" --vm
+    lxc init "${LXD_CONTAINER}" "${BUILD_CONTAINER}" --vm
   else
     # Ephemeral for clean builds
-    lxc launch "${LXD_CONTAINER}" "${BUILD_CONTAINER}" --vm --ephemeral
+    lxc init "${LXD_CONTAINER}" "${BUILD_CONTAINER}" --vm --ephemeral
   fi
 
   lxc ls
+
+  # CPU Configuration
+  default_cpu_count=4                            # Target number of CPUs to allocate
+  
+  # Get all host CPUs (0 to N-1)
+  all_cpus=$(seq 0 $(($(nproc) - 1)))
+  
+  # Extract explicitly pinned CPUs from RUNNING instances
+  used_cpus=$(lxc list -c n status=running --format csv | xargs -I {} lxc config get {} limits.cpu 2>/dev/null | grep ',' | tr ',' '\n' | sort -u)
+  
+  # Determine available_cpus
+  # If used_cpus is empty, grep -vFx might behave unexpectedly, so we handle it explicitly
+  if [ -z "$used_cpus" ]; then
+      available_cpus="$all_cpus"
+  else
+      available_cpus=$(echo "$all_cpus" | grep -vFx -f <(echo "$used_cpus"))
+  fi
+  
+  # Count how many are actually available
+  if [ -z "$available_cpus" ]; then
+      available_count=0
+  else
+      available_count=$(echo "$available_cpus" | wc -l)
+  fi
+  
+  # Strict check: Must have > 0 CPUs available
+  if [ "$available_count" -eq 0 ]; then
+      echo "Error: No CPUs available to allocate."
+      exit 1
+  fi
+  
+  # Calculate how many to actually allocate (cannot exceed available_count)
+  if [ "$default_cpu_count" -gt "$available_count" ]; then
+      allocate_count="$available_count"
+      echo "Warning: Requested $default_cpu_count CPUs, but only $available_count are available. Allocating $available_count."
+  else
+      allocate_count="$default_cpu_count"
+  fi
+  
+  # Extract the top X CPUs and convert to a comma-separated string
+  cpus_to_allocate=$(echo "$available_cpus" | head -n "$allocate_count" | paste -sd, -)
+  
+  # Print the result and apply to LXD
+  echo "Successfully found available CPUs."
+  echo "Allocating CPUs: $cpus_to_allocate to '${BUILD_CONTAINER}'"
+  
+  lxc config set "${BUILD_CONTAINER}" limits.cpu "$cpus_to_allocate"
+
+  # Memory Configuration
+  TARGET_MEM_MB=4096             # How much RAM you WANT to allocate (in Megabytes)
+  HOST_BUFFER_MB=512             # Safety buffer: Always leave this much RAM for the host OS
+  
+  # Get currently available memory directly from the kernel (in KB, convert to MB)
+  avail_kb=$(awk '/MemAvailable/ {print $2}' /proc/meminfo)
+  avail_mb=$((avail_kb / 1024))
+  
+  # Calculate safe available memory (Total Available - Host Buffer)
+  safe_mb=$((avail_mb - HOST_BUFFER_MB))
+  
+  # Strict check: Ensure we actually have memory to give
+  if [ "$safe_mb" -le 0 ]; then
+      echo "Error: Host is critically low on memory. Cannot allocate."
+      exit 1
+  fi
+  
+  # Determine how much to actually allocate
+  if [ "$TARGET_MEM_MB" -gt "$safe_mb" ]; then
+      allocate_mb="$safe_mb"
+      echo "Warning: Requested ${TARGET_MEM_MB}MB, but only ${safe_mb}MB is safely available."
+      echo "Throttling down to ${safe_mb}MB..."
+  else
+      allocate_mb="$TARGET_MEM_MB"
+  fi
+  
+  # Apply the limit to the container
+  echo "Allocating ${allocate_mb}MB to '${BUILD_CONTAINER}'..."
+  lxc config set "${BUILD_CONTAINER}" limits.memory "${allocate_mb}MB"
+
+  lxc start "${BUILD_CONTAINER}"
 
   wait_for_container "${BUILD_CONTAINER}"
   
