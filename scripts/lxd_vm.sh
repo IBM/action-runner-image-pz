@@ -210,8 +210,8 @@ configure_cpu_resources() {
 # Configure memory resources for an LXD VM
 # Parameters:
 #   $1 - vm_name: Name of the LXD VM
-#   $2 - target_memory_mb: Desired memory allocation in MB (default: 4096)
-#   $3 - host_buffer_mb: Safety buffer to leave for host OS in MB (default: 512)
+#   $2 - target_memory_mb: Desired memory allocation in MiB (default: 4096)
+#   $3 - host_buffer_mb: Safety buffer to leave for host OS in MiB (default: 512)
 configure_memory_resources() {
   local vm_name="$1"
   local target_memory_mb="${2:-4096}"
@@ -224,18 +224,18 @@ configure_memory_resources() {
   fi
   
   if ! [[ "$target_memory_mb" =~ ^[0-9]+$ ]] || [[ "$target_memory_mb" -lt 1 ]]; then
-    echo "Error: Invalid target memory. Must be a positive integer (MB)."
+    echo "Error: Invalid target memory. Must be a positive integer (MiB)."
     return 1
   fi
   
   if ! [[ "$host_buffer_mb" =~ ^[0-9]+$ ]] || [[ "$host_buffer_mb" -lt 0 ]]; then
-    echo "Error: Invalid host buffer. Must be a non-negative integer (MB)."
+    echo "Error: Invalid host buffer. Must be a non-negative integer (MiB)."
     return 1
   fi
   
   msg "Configuring memory resources for VM '${vm_name}'..."
   
-  # Get currently available memory directly from the kernel (in KB, convert to MB)
+  # Get currently available memory directly from the kernel (in KB, convert to MiB)
   local avail_kb
   avail_kb=$(awk '/MemAvailable/ {print $2}' /proc/meminfo)
   
@@ -252,7 +252,7 @@ configure_memory_resources() {
   # Strict check: Ensure we actually have memory to give
   if [[ "$safe_mb" -le 0 ]]; then
     echo "Error: Host is critically low on memory. Cannot allocate."
-    echo "Available: ${avail_mb}MB, Buffer: ${host_buffer_mb}MB, Safe: ${safe_mb}MB"
+    echo "Available: ${avail_mb}MiB, Buffer: ${host_buffer_mb}MiB, Safe: ${safe_mb}MiB"
     return 1
   fi
   
@@ -260,16 +260,16 @@ configure_memory_resources() {
   local allocate_mb
   if [[ "$target_memory_mb" -gt "$safe_mb" ]]; then
     allocate_mb="$safe_mb"
-    echo "Warning: Requested ${target_memory_mb}MB, but only ${safe_mb}MB is safely available."
-    echo "Throttling down to ${safe_mb}MB..."
+    echo "Warning: Requested ${target_memory_mb}MiB, but only ${safe_mb}MiB is safely available."
+    echo "Throttling down to ${safe_mb}MiB..."
   else
     allocate_mb="$target_memory_mb"
   fi
   
   # Apply the limit to the VM
-  echo "Allocating ${allocate_mb}MB to '${vm_name}'..."
+  echo "Allocating ${allocate_mb}MiB to '${vm_name}'..."
   
-  if ! lxc config set "${vm_name}" limits.memory "${allocate_mb}MB"; then
+  if ! lxc config set "${vm_name}" limits.memory "${allocate_mb}MiB"; then
     echo "Error: Failed to set memory limits for VM '${vm_name}'."
     return 1
   fi
