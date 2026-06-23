@@ -447,6 +447,10 @@ build_image() {
       fi
   fi
 
+  # Flush VM filesystem cache to ensure all writes are persisted before snapshot
+  msg "Syncing VM filesystem to disk."
+  lxc exec "${BUILD_VM}" -- sync
+
   msg "Runner build complete."
 
   # Snapshotting (VM Level) ---
