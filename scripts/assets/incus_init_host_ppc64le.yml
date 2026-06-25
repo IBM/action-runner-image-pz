@@ -1,0 +1,45 @@
+config: {}
+networks:
+- config:
+    ipv4.address: auto
+    ipv4.nat: "true"
+    ipv6.address: auto
+    ipv6.nat: "true"
+  description: Default Incus bridge for ppc64le
+  name: incusbr0
+  type: bridge
+  project: default
+storage_pools:
+- config:
+    lvm.thinpool_name: IncusThinPool
+    size: 180GiB
+    source: vg_incus
+    volume.size: 60GiB
+  description: Incus LVM storage pool for ppc64le
+  name: default
+  driver: lvm
+profiles:
+- config:
+    security.syscalls.deny_default: "false"
+    security.nesting: "true"
+  description: Default Incus profile for ppc64le
+  devices:
+    eth0:
+      name: eth0
+      network: incusbr0
+      type: nic
+    root:
+      path: /
+      pool: default
+      type: disk
+  name: default
+projects:
+- config:
+    features.images: "true"
+    features.networks: "true"
+    features.profiles: "true"
+    features.storage.volumes: "true"
+  description: Default Incus project
+  name: default
+
+# Made with Bob
