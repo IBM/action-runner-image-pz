@@ -118,9 +118,10 @@ build_image() {
   # shellcheck disable=SC2154
   EXISTING_IMAGE_JSON=$(incus image list --format=json | jq -r --arg commit "${BUILD_SHA}" --arg os "${clean_args[0]}" --arg ver "${clean_args[1]}" --arg setup "${clean_args[4]}" \
     '.[] | select(
-        .properties["properties.build.commit"] == $commit and 
-        .properties["properties.build.os"] == $os and 
-        .properties["properties.build.version"] == $ver and 
+        .type == "container" and
+        .properties["properties.build.commit"] == $commit and
+        .properties["properties.build.os"] == $os and
+        .properties["properties.build.version"] == $ver and
         .properties["properties.build.setup"] == $setup
     )')
 

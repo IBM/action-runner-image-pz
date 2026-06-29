@@ -46,9 +46,9 @@ echo "=================================================="
 # --------------------------------------------------
 
 echo "[INFO] Installing dependencies..."
-apt-get update
+update_dpkgs
 
-DEBIAN_FRONTEND=noninteractive apt-get install -y \
+install_dpkgs \
     git \
     gcc \
     g++ \
@@ -313,8 +313,8 @@ echo "[INFO] Initializing Incus..."
 # Check if storage pool exists
 STORAGE_EXISTS=$(/usr/local/bin/incus storage list --format csv 2>/dev/null | grep -q "^default," && echo "true" || echo "false")
 
-# Check if network exists
-NETWORK_EXISTS=$(/usr/local/bin/incus network list --format csv 2>/dev/null | grep -q "^incusbr0," && echo "true" || echo "false")
+# Check if network exists AND is properly configured (managed=YES)
+NETWORK_EXISTS=$(/usr/local/bin/incus network list --format csv 2>/dev/null | grep "^incusbr0," | grep -q ",YES," && echo "true" || echo "false")
 
 if [ "$STORAGE_EXISTS" = "true" ] && [ "$NETWORK_EXISTS" = "true" ]; then
     echo "[INFO] Incus already initialized (storage and network exist)"
@@ -323,35 +323,53 @@ if [ "$STORAGE_EXISTS" = "true" ] && [ "$NETWORK_EXISTS" = "true" ]; then
     echo "[INFO] Existing networks:"
     /usr/local/bin/incus network list
 else
-    echo "[INFO] Running preseed configuration..."
-    if [ ! -f "$CONFIG_FILE" ]; then
-        echo "[ERROR] Config file not found: $CONFIG_FILE"
-        exit 1
+    # Hybrid approach: Try preseed first if nothing exists, fallback to manual if partial state
+    if [ "$STORAGE_EXISTS" = "false" ] && [ "$NETWORK_EXISTS" = "false" ]; then
+        echo "[INFO] Fresh installation detected. Attempting preseed initialization..."
+        if [ ! -f "$CONFIG_FILE" ]; then
+            echo "[ERROR] Config file not found: $CONFIG_FILE"
+            exit 1
+        fi
+        
+        # Try preseed initialization
+        if /usr/local/bin/incus admin init --preseed < "$CONFIG_FILE" 2>/dev/null; then
+            echo "[INFO] Preseed initialization successful"
+        else
+            echo "[WARN] Preseed initialization failed. Falling back to manual configuration..."
+            PRESEED_FAILED=true
+        fi
+    else
+        echo "[INFO] Partial configuration detected (storage: $STORAGE_EXISTS, network: $NETWORK_EXISTS)"
+        echo "[INFO] Using manual configuration for idempotent setup..."
+        PRESEED_FAILED=true
     fi
     
-    # Create network if it doesn't exist
-    if [ "$NETWORK_EXISTS" = "false" ]; then
-        echo "[INFO] Creating network incusbr0..."
-        /usr/local/bin/incus network create incusbr0 \
-            ipv4.address=auto \
-            ipv4.nat=true \
-            ipv6.address=auto \
-            ipv6.nat=true \
-            --description="Default Incus bridge for $ARCH"
+    # Manual configuration (runs if preseed failed or partial state exists)
+    if [ "${PRESEED_FAILED:-false}" = "true" ]; then
+        # Create network if it doesn't exist
+        if [ "$NETWORK_EXISTS" = "false" ]; then
+            echo "[INFO] Creating network incusbr0..."
+            /usr/local/bin/incus network create incusbr0 \
+                ipv4.address=auto \
+                ipv4.nat=true \
+                ipv6.address=auto \
+                ipv6.nat=true \
+                --description="Default Incus bridge for $ARCH"
+        fi
+        
+        # Create storage pool if it doesn't exist
+        if [ "$STORAGE_EXISTS" = "false" ]; then
+            echo "[INFO] Creating storage pool default..."
+            /usr/local/bin/incus storage create default lvm \
+                source=vg_incus \
+                lvm.thinpool_name=IncusThinPool \
+                size=100GiB \
+                volume.size=60GiB \
+                --description="Incus LVM storage pool for $ARCH"
+        fi
     fi
     
-    # Create storage pool if it doesn't exist
-    if [ "$STORAGE_EXISTS" = "false" ]; then
-        echo "[INFO] Creating storage pool default..."
-        /usr/local/bin/incus storage create default lvm \
-            source=vg_incus \
-            lvm.thinpool_name=IncusThinPool \
-            size=180GiB \
-            volume.size=60GiB \
-            --description="Incus LVM storage pool for $ARCH"
-    fi
-    
-    # Update/create profile
+    # Always configure profile (works for both preseed and manual)
     echo "[INFO] Configuring default profile..."
     /usr/local/bin/incus profile device set default root pool=default 2>/dev/null || \
         /usr/local/bin/incus profile device add default root disk path=/ pool=default
