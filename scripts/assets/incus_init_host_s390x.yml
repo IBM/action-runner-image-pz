@@ -12,7 +12,7 @@ networks:
 storage_pools:
 - config:
     lvm.thinpool_name: IncusThinPool
-    size: 180GiB
+    size: 100GiB
     source: vg_incus
     volume.size: 60GiB
   description: Incus LVM storage pool for s390x
