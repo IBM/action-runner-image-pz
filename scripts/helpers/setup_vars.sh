@@ -20,6 +20,12 @@ usage() {
     echo "  --skip-lxd-publish      Skip LXD publish"
     echo "  --skip-lxd-snapshot     Skip LXD snapshot"
     echo "  --delete-lxd-img        Delete the existing LXD image before building"
+    echo "  --incus-debug           Enable Incus debug mode (non-ephemeral containers)"
+    echo "  --skip-incus-img-export Skip Incus image export"
+    echo "  --skip-incus-img-primer Skip Incus image primer"
+    echo "  --skip-incus-publish    Skip Incus publish"
+    echo "  --skip-incus-snapshot   Skip Incus snapshot"
+    echo "  --delete-incus-img      Delete the existing Incus image before building"
     echo "  -h, --help              Show this help"
     echo ""
     # Use return 1 instead of exit 1 because this script is sourced
@@ -34,6 +40,12 @@ SKIP_LXD_IMG_PRIMER=false
 SKIP_LXD_PUBLISH=false
 SKIP_LXD_SNAPSHOT=false
 DELETE_LXD_IMG=false
+INCUS_DEBUG=false
+SKIP_INCUS_IMG_EXPORT=false
+SKIP_INCUS_IMG_PRIMER=false
+SKIP_INCUS_PUBLISH=false
+SKIP_INCUS_SNAPSHOT=false
+DELETE_INCUS_IMG=false
 ARCH=${ARCH:-$(uname -m)}
 PATCH_FILE="${PATCH_FILE:-runner-sdk8-${ARCH}.patch}"
 
@@ -78,6 +90,36 @@ while [[ $# -gt 0 ]]; do
         --delete-lxd-img)
             # shellcheck disable=SC2034
             DELETE_LXD_IMG=true
+            forward_args+=("$1")
+            ;;
+        --incus-debug)
+            # shellcheck disable=SC2034
+            INCUS_DEBUG=true
+            forward_args+=("$1")
+            ;;
+        --skip-incus-img-export)
+            # shellcheck disable=SC2034
+            SKIP_INCUS_IMG_EXPORT=true
+            forward_args+=("$1")
+            ;;
+        --skip-incus-img-primer)
+            # shellcheck disable=SC2034
+            SKIP_INCUS_IMG_PRIMER=true
+            forward_args+=("$1")
+            ;;
+        --skip-incus-publish)
+            # shellcheck disable=SC2034
+            SKIP_INCUS_PUBLISH=true
+            forward_args+=("$1")
+            ;;
+        --skip-incus-snapshot)
+            # shellcheck disable=SC2034
+            SKIP_INCUS_SNAPSHOT=true
+            forward_args+=("$1")
+            ;;
+        --delete-incus-img)
+            # shellcheck disable=SC2034
+            DELETE_INCUS_IMG=true
             forward_args+=("$1")
             ;;
         -h|--help)
