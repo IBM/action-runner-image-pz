@@ -15,31 +15,29 @@ msg() {
 }
 
 ensure_incus() {
+    echo "Ensuring Incus is installed and configured..."
+    
+    # Always run install-incus.sh - it handles:
+    # 1. Installation (if not installed)
+    # 2. Configuration (if not configured)
+    # 3. Base image import (at the end)
+    # The script has built-in idempotency checks
+    run_script "${HOST_INSTALLER_SCRIPT_FOLDER}/install-incus.sh" "HELPER_SCRIPTS" "INSTALLER_SCRIPT_FOLDER" "ARCH"
+    
+    # Verify Incus is working
     if ! command -v incus &> /dev/null; then
-        echo "Incus is not installed."
-        echo "Installing Incus from source..."
-        run_script "${HOST_INSTALLER_SCRIPT_FOLDER}/install-incus.sh" "HELPER_SCRIPTS" "INSTALLER_SCRIPT_FOLDER" "ARCH"
-        if command -v incus &> /dev/null; then
-            echo "Incus installed successfully."
-        else
-            echo "Failed to install Incus. Please check your system configuration."
-            exit 1
-        fi
-    else
-        echo "Incus is already installed. Checking its version..."
-        
-        INCUS_VERSION=$(incus --version 2>/dev/null || echo "unknown")
-        echo "Currently installed Incus version: ${INCUS_VERSION}"
-        
-        # Check if incus daemon is running and ready
-        if incus admin waitready --timeout=5 >/dev/null 2>&1; then
-            echo "Incus daemon is running and ready."
-        else
-            echo "Error: Incus daemon is not responding."
-            echo "Please check if incusd is running: pgrep -x incusd"
-            exit 1
-        fi
+        echo "Error: Incus installation failed."
+        exit 1
     fi
+    
+    # Check if incus daemon is running and ready
+    if ! incus admin waitready --timeout=5 >/dev/null 2>&1; then
+        echo "Error: Incus daemon is not responding."
+        echo "Please check if incusd is running: pgrep -x incusd"
+        exit 1
+    fi
+    
+    echo "Incus is ready."
 }
 
 # shellcheck disable=SC2329
@@ -328,7 +326,25 @@ build_image() {
 }
 
 run() {
+  # First ensure Incus is installed and configured
   ensure_incus "$@"
+  
+  # After Incus is ready, check and import base images if needed
+  # This runs in the main script context, so interactive prompts work
+  echo ""
+  echo "Checking for Ubuntu base images..."
+  
+  if incus image list --format=csv | grep -q "ubuntu-22.04\|ubuntu-24.04"; then
+    echo "Ubuntu base images found. Skipping import."
+  else
+    echo "No Ubuntu base images found. Starting import..."
+    # Source and call the import function
+    # shellcheck disable=SC1091
+    source "${HELPERS_DIR}/import_ubuntu_base_images.sh"
+    import_ubuntu_base_images
+  fi
+  
+  # Now build the container image
   build_image "$@"
   return $?
 }
@@ -353,5 +369,3 @@ prolog
 run "$@"
 RC=$?
 exit ${RC}
-
-# Made with Bob

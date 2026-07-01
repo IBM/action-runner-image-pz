@@ -16,10 +16,11 @@ exec 2>&1
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../.." && pwd)"
-HELPER_SCRIPTS="${HELPER_SCRIPTS:-${SCRIPT_DIR}/../helpers}"
+# Always use the script's own helpers directory for install.sh
+SCRIPT_HELPER_SCRIPTS="${SCRIPT_DIR}/../helpers"
 
 # shellcheck disable=SC1091
-source "$HELPER_SCRIPTS"/install.sh
+source "$SCRIPT_HELPER_SCRIPTS"/install.sh
 
 ARCH="${ARCH:-$(uname -m)}"
 CONFIG_FILE="${REPO_ROOT}/scripts/assets/incus_init_host_${ARCH}.yml"
@@ -395,4 +396,7 @@ echo "=================================================="
 echo " Incus installation completed successfully"
 echo "=================================================="
 
-# Made with Bob
+echo ""
+echo "[INFO] Incus installation and configuration completed"
+echo "[INFO] Base image import will be handled by the calling script"
+echo ""
