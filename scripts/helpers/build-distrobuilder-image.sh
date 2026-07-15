@@ -10,6 +10,12 @@
 # Note: Do NOT use 'set -e' in sourced scripts as it affects the parent shell
 # Instead, use explicit error checking with || return 1
 
+# Script/repository location
+# Use BASH_SOURCE[0] instead of $0 to work correctly when sourced
+SCRIPT_PATH="$(realpath "${BASH_SOURCE[0]}")"
+SCRIPT_DIR="$(dirname "$SCRIPT_PATH")"
+REPO_ROOT="$(realpath "$SCRIPT_DIR/../..")"
+
 # Color codes for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -92,6 +98,7 @@ install_dependencies() {
                 qemu-utils \
                 gdisk \
                 dosfstools \
+                btrfs-progs \
                 git \
                 wget \
                 xz-utils >/dev/null 2>&1
@@ -111,9 +118,29 @@ install_dependencies() {
                 qemu-img \
                 gdisk \
                 dosfstools \
+                btrfs-progs \
                 git \
                 wget \
-                xz >/dev/null 2>&1
+                xz \
+                patch >/dev/null 2>&1
+            ;;
+        fedora)
+            log_info "Installing dependencies via dnf (Fedora)..."
+            dnf clean all -q
+            dnf install -y -q \
+                golang \
+                debootstrap \
+                rsync \
+                squashfs-tools \
+                make \
+                qemu-img \
+                gdisk \
+                dosfstools \
+                btrfs-progs \
+                git \
+                wget \
+                xz \
+                patch >/dev/null 2>&1
             ;;
         *)
             log_error "Unsupported OS: ${os_type}"
@@ -124,7 +151,7 @@ install_dependencies() {
     log_success "Dependencies installed"
 }
 
-# Function to build and install distrobuilder
+# Function to build and install distrobuilder with ppc64le VM patches
 install_distrobuilder() {
     log_info "Checking distrobuilder installation..."
     
@@ -136,7 +163,10 @@ install_distrobuilder() {
         return 0
     fi
     
-    log_info "Building distrobuilder from source..."
+    log_info "Building distrobuilder from source with ppc64le VM patches..."
+    
+    echo "Repo root: ${REPO_ROOT}"
+    echo "Patch file: ${REPO_ROOT}/patches/distrobuilder-ppc64le.patch"
     
     # Create temporary build directory
     local build_dir
@@ -152,6 +182,36 @@ install_distrobuilder() {
     fi
     
     cd distrobuilder || return 1
+    
+    # Apply ppc64le VM patches
+    local patch_file="${REPO_ROOT}/patches/distrobuilder-ppc64le.patch"
+    local fstab_patch="${REPO_ROOT}/patches/distrobuilder-fstab-ppc64le.patch"
+    
+    if [[ -f "$patch_file" ]]; then
+        log_info "Applying ppc64le VM support patches..."
+        if patch -p1 < "$patch_file"; then
+            log_success "Patches applied successfully"
+        else
+            log_warn "Failed to apply patches (may already be applied or incompatible)"
+            log_warn "Continuing with build..."
+        fi
+    else
+        log_warn "Patch file not found: $patch_file"
+        log_warn "Building without ppc64le VM patches"
+    fi
+    
+    if [[ -f "$fstab_patch" ]]; then
+        log_info "Applying ppc64le fstab patches..."
+        if patch -p1 < "$fstab_patch"; then
+            log_success "fstab patches applied successfully"
+        else
+            log_warn "Failed to apply fstab patches (may already be applied or incompatible)"
+            log_warn "Continuing with build..."
+        fi
+    else
+        log_warn "Patch file not found: $fstab_patch"
+        log_warn "Building without ppc64le fstab patches"
+    fi
     
     # Build distrobuilder
     log_info "Building distrobuilder (this may take a few minutes)..."
@@ -190,11 +250,57 @@ install_distrobuilder() {
     fi
 }
 
+# Apply a generic netplan match rule for Incus VMs.
+# This avoids depending on architecture-specific interface names
+# (for example enp5s0 vs enp0s5).
+patch_netplan_config() {
+    local yaml="$1"
+
+    log_info "Updating Ubuntu netplan configuration to use interface matching..."
+
+    python3 - "$yaml" <<'PY'
+import re
+import sys
+
+path = sys.argv[1]
+
+with open(path) as f:
+    data = f.read()
+
+pattern = (
+    r"^(\s*)enp5s0:\n"
+    r"\1  dhcp4: true\n"
+    r"\1  dhcp-identifier: mac"
+)
+
+replacement = (
+    r"\1primary:\n"
+    r"\1  match:\n"
+    r'\1    name: "en*"\n'
+    r"\1  dhcp4: true\n"
+    r"\1  dhcp-identifier: mac"
+)
+
+new_data, count = re.subn(pattern, replacement, data, flags=re.MULTILINE)
+
+if count != 1:
+    raise RuntimeError(f"Expected to patch 1 netplan block, patched {count}")
+
+with open(path, "w") as f:
+    f.write(new_data)
+
+print("Netplan patch applied")
+PY
+
+    log_success "Netplan configuration updated"
+}
+
 # Main function to build Ubuntu image with distrobuilder
 build_distrobuilder_ubuntu_image() {
     local VERSION="$1"
     local ARCH="${2:-$(uname -m)}"
     local WORKDIR="${3:-$HOME/incus-images/official-ubuntu}"
+    local BUILD_VM="${4:-false}"  # New parameter for VM builds
     
     # Validate version
     if [[ ! "$VERSION" =~ ^(22.04|24.04)$ ]]; then
@@ -206,12 +312,18 @@ build_distrobuilder_ubuntu_image() {
     local CODENAME
     CODENAME=$(get_release_codename "$VERSION")
     
-    # Define image alias
+    # Define image alias (add -vm suffix for VM images)
     local IMAGE_ALIAS="ubuntu-${VERSION}"
+    local IMAGE_TYPE="container"
+    if [[ "$BUILD_VM" == "true" ]]; then
+        IMAGE_ALIAS="${IMAGE_ALIAS}-vm"
+        IMAGE_TYPE="virtual-machine"
+    fi
     
     log_info "=========================================="
     log_info "Building Ubuntu ${VERSION} (${CODENAME})"
     log_info "Architecture: ${ARCH}"
+    log_info "Image Type: ${IMAGE_TYPE}"
     log_info "Image Alias: ${IMAGE_ALIAS}"
     log_info "Build Method: distrobuilder"
     log_info "=========================================="
@@ -240,6 +352,16 @@ build_distrobuilder_ubuntu_image() {
     if ! install_distrobuilder; then
         log_error "Failed to install distrobuilder"
         return 1
+    fi
+    
+    # Use global REPO_ROOT
+    local repo_root="$REPO_ROOT"
+    
+    # Log repo root detection result
+    if [[ -d "$repo_root/patches" ]]; then
+        log_info "Found repo root: $repo_root"
+    else
+        log_warn "Could not locate patches directory"
     fi
     
     # Create working directory
@@ -272,11 +394,50 @@ build_distrobuilder_ubuntu_image() {
     fi
     log_success "Image definition downloaded"
     
+    # Apply netplan configuration patch for VM builds
+    if [[ "$BUILD_VM" == "true" ]]; then
+        patch_netplan_config ubuntu.yaml
+    fi
+    
+    # Apply ppc64le GRUB patches to ubuntu.yaml if repo root was found
+    if [[ -n "$repo_root" && -d "$repo_root/patches" ]]; then
+        local yaml_patch="${REPO_ROOT}/patches/lxc-ci-ppc64le.patch"
+        log_info "Patch file path: $yaml_patch"
+        
+        if [[ -f "$yaml_patch" ]]; then
+            log_info "Applying ppc64le GRUB patches to ubuntu.yaml..."
+            # Create images directory structure for patch to work
+            mkdir -p images
+            mv ubuntu.yaml images/ubuntu.yaml
+            if patch -p1 < "$yaml_patch"; then
+                log_success "ubuntu.yaml patches applied successfully"
+            else
+                log_warn "Failed to apply ubuntu.yaml patches (may already be applied)"
+                log_warn "Continuing with build..."
+            fi
+            # Move ubuntu.yaml back to current directory
+            mv images/ubuntu.yaml ubuntu.yaml
+            rmdir images 2>/dev/null || true
+        else
+            log_warn "Patch file not found: $yaml_patch"
+            log_warn "Building without ppc64le GRUB patches"
+        fi
+    else
+        log_warn "Building without ppc64le GRUB patches (patches directory not found)"
+    fi
+    
     # Build image with distrobuilder
-    log_info "Building Ubuntu ${VERSION} image (this will take several minutes)..."
+    log_info "Building Ubuntu ${VERSION} ${IMAGE_TYPE} image (this will take several minutes)..."
     log_info "Architecture: ${ARCH}, Release: ${CODENAME}"
     
-    if ! distrobuilder build-incus ubuntu.yaml \
+    # Add --vm flag for VM builds
+    local VM_FLAG=""
+    if [[ "$BUILD_VM" == "true" ]]; then
+        VM_FLAG="--vm"
+        log_info "Building as virtual machine image"
+    fi
+    
+    if ! distrobuilder build-incus ubuntu.yaml ${VM_FLAG} \
         -o image.architecture="${ARCH}" \
         -o image.release="${CODENAME}" \
         -o image.variant=default \
@@ -289,22 +450,41 @@ build_distrobuilder_ubuntu_image() {
     
     log_success "Image build completed"
     
-    # Check for generated artifacts
-    if [[ ! -f "incus.tar.xz" ]] || [[ ! -f "rootfs.squashfs" ]]; then
-        log_error "Build artifacts not found (incus.tar.xz or rootfs.squashfs)"
-        cleanup_files
-        return 1
-    fi
-    
-    log_info "Build artifacts:"
-    ls -lh incus.tar.xz rootfs.squashfs
-    
-    # Import into Incus
-    log_info "Importing image into Incus with alias '${IMAGE_ALIAS}'..."
-    if ! incus image import incus.tar.xz rootfs.squashfs --alias "$IMAGE_ALIAS"; then
-        log_error "Failed to import image into Incus"
-        cleanup_files
-        return 1
+    # Check for generated artifacts (different for VMs vs containers)
+    if [[ "$BUILD_VM" == "true" ]]; then
+        # VM builds produce disk image
+        if [[ ! -f "incus.tar.xz" ]] || [[ ! -f "disk.qcow2" ]]; then
+            log_error "VM build artifacts not found (incus.tar.xz or disk.qcow2)"
+            cleanup_files
+            return 1
+        fi
+        log_info "VM Build artifacts:"
+        ls -lh incus.tar.xz disk.qcow2
+        
+        # Import VM into Incus
+        log_info "Importing VM image into Incus with alias '${IMAGE_ALIAS}'..."
+        if ! incus image import incus.tar.xz disk.qcow2 --alias "$IMAGE_ALIAS"; then
+            log_error "Failed to import VM image into Incus"
+            cleanup_files
+            return 1
+        fi
+    else
+        # Container builds produce rootfs
+        if [[ ! -f "incus.tar.xz" ]] || [[ ! -f "rootfs.squashfs" ]]; then
+            log_error "Container build artifacts not found (incus.tar.xz or rootfs.squashfs)"
+            cleanup_files
+            return 1
+        fi
+        log_info "Container Build artifacts:"
+        ls -lh incus.tar.xz rootfs.squashfs
+        
+        # Import container into Incus
+        log_info "Importing container image into Incus with alias '${IMAGE_ALIAS}'..."
+        if ! incus image import incus.tar.xz rootfs.squashfs --alias "$IMAGE_ALIAS"; then
+            log_error "Failed to import container image into Incus"
+            cleanup_files
+            return 1
+        fi
     fi
     log_success "Image imported successfully"
     
@@ -360,12 +540,31 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     
     # Parse arguments
     if [[ $# -lt 1 ]]; then
-        echo "Usage: $0 <version> [arch] [workdir]"
+        echo "Usage: $0 <version> [arch] [workdir] [--vm]"
         echo "  version: 22.04 or 24.04"
         echo "  arch: ppc64le, s390x, or x86_64 (default: auto-detect)"
         echo "  workdir: Build directory (default: ~/incus-images/official-ubuntu)"
+        echo "  --vm: Build VM image instead of container (optional)"
         return 1
     fi
     
-    build_distrobuilder_ubuntu_image "$@"
+    # Check for --vm flag
+    BUILD_VM="false"
+    for arg in "$@"; do
+        if [[ "$arg" == "--vm" ]]; then
+            BUILD_VM="true"
+            break
+        fi
+    done
+    
+    # Remove --vm from arguments if present
+    ARGS=()
+    for arg in "$@"; do
+        if [[ "$arg" != "--vm" ]]; then
+            ARGS+=("$arg")
+        fi
+    done
+    
+    build_distrobuilder_ubuntu_image "${ARGS[@]}" "$BUILD_VM"
 fi
+

@@ -181,3 +181,4 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     
     import_incus_ubuntu_image "$@"
 fi
+

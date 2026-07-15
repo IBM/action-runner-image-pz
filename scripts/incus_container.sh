@@ -17,16 +17,21 @@ msg() {
 ensure_incus() {
     echo "Ensuring Incus is installed and configured..."
     
-    # Always run install-incus.sh - it handles:
-    # 1. Installation (if not installed)
-    # 2. Configuration (if not configured)
-    # 3. Base image import (at the end)
-    # The script has built-in idempotency checks
-    run_script "${HOST_INSTALLER_SCRIPT_FOLDER}/install-incus.sh" "HELPER_SCRIPTS" "INSTALLER_SCRIPT_FOLDER" "ARCH"
+    # Check if we should skip installation
+    if [[ "${SKIP_SNAP_LXD}" == "true" ]]; then
+        echo "Skipping Incus installation (--skip-snap-lxd flag set)"
+    else
+        # Run install-incus.sh - it handles:
+        # 1. Installation (if not installed)
+        # 2. Configuration (if not configured)
+        # 3. Base image import (at the end)
+        # The script has built-in idempotency checks
+        run_script "${HOST_INSTALLER_SCRIPT_FOLDER}/install-incus.sh" "HELPER_SCRIPTS" "INSTALLER_SCRIPT_FOLDER" "ARCH"
+    fi
     
     # Verify Incus is working
     if ! command -v incus &> /dev/null; then
-        echo "Error: Incus installation failed."
+        echo "Error: Incus is not installed."
         exit 1
     fi
     
@@ -353,6 +358,9 @@ prolog() {
   PATH=/usr/local/bin:${PATH}
   EXPORT="/opt/distro"
   HOST_OS_NAME=$(awk -F= '/^NAME/{print $2}' /etc/os-release | tr -d '"' | tr '[:upper:]' '[:lower:]' | awk '{print $1}')
+  # Map OS families - Fedora/RHEL/AlmaLinux/Rocky use CentOS scripts
+  [[ "$HOST_OS_NAME" =~ ^(fedora|rhel|almalinux|rocky|red)$ ]] && HOST_OS_NAME="centos"
+  [[ "$HOST_OS_NAME" =~ ^(debian)$ ]] && HOST_OS_NAME="ubuntu"
   # shellcheck disable=SC2034
   # shellcheck disable=SC2002
   HOST_OS_VERSION=$(cat /etc/os-release | grep -E 'VERSION_ID' | cut -d'=' -f2 | tr -d '"')
@@ -369,3 +377,5 @@ prolog
 run "$@"
 RC=$?
 exit ${RC}
+
+

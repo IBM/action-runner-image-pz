@@ -339,6 +339,9 @@ prolog() {
   PATH=/snap/bin:${PATH}
   EXPORT="/opt/distro"
   HOST_OS_NAME=$(awk -F= '/^NAME/{print $2}' /etc/os-release | tr -d '"' | tr '[:upper:]' '[:lower:]' | awk '{print $1}')
+  # Map OS families - Fedora/RHEL/AlmaLinux/Rocky use CentOS scripts
+  [[ "$HOST_OS_NAME" =~ ^(fedora|rhel|almalinux|rocky|red)$ ]] && HOST_OS_NAME="centos"
+  [[ "$HOST_OS_NAME" =~ ^(debian)$ ]] && HOST_OS_NAME="ubuntu"
   # shellcheck disable=SC2034
   # shellcheck disable=SC2002
   HOST_OS_VERSION=$(cat /etc/os-release | grep -E 'VERSION_ID' | cut -d'=' -f2 | tr -d '"')
