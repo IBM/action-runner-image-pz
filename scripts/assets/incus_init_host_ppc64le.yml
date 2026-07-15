@@ -20,6 +20,8 @@ storage_pools:
   driver: lvm
 profiles:
 - config:
+    limits.memory: 16GiB
+    raw.qemu: -m 16384M,slots=0,maxmem=16384M
     security.syscalls.deny_default: "false"
     security.nesting: "true"
   description: Default Incus profile for ppc64le
@@ -41,3 +43,4 @@ projects:
     features.storage.volumes: "true"
   description: Default Incus project
   name: default
+

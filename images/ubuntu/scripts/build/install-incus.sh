@@ -201,15 +201,31 @@ fi
 /usr/local/bin/incusd --version
 
 # --------------------------------------------------
+# Configure Groups
+# --------------------------------------------------
+
+echo "[INFO] Configuring Incus groups..."
+getent group incus       >/dev/null || groupadd --system incus
+getent group incus-admin >/dev/null || groupadd --system incus-admin
+usermod -aG incus,incus-admin root
+
+# --------------------------------------------------
 # Configure User Namespace Mapping
 # --------------------------------------------------
 
 echo "[INFO] Configuring idmap..."
-grep -q "^root:100000:65536" /etc/subuid || \
-    echo "root:100000:65536" >> /etc/subuid
 
-grep -q "^root:100000:65536" /etc/subgid || \
-    echo "root:100000:65536" >> /etc/subgid
+# Remove any existing root: entries (may have wrong range from a
+# previous partial run) then write the single correct mapping.
+# This keeps the operation idempotent across re-runs.
+sed -i '/^root:/d' /etc/subuid
+echo "root:100000:65536" >> /etc/subuid
+
+sed -i '/^root:/d' /etc/subgid
+echo "root:100000:65536" >> /etc/subgid
+
+echo "[INFO] subuid: $(grep ^root /etc/subuid)"
+echo "[INFO] subgid: $(grep ^root /etc/subgid)"
 
 chmod u+s /usr/bin/newuidmap
 chmod u+s /usr/bin/newgidmap
@@ -223,35 +239,46 @@ setup_lvm_storage() {
         echo "[INFO] LVM storage disabled, using DIR storage"
         return 0
     fi
-    
+
     echo "[INFO] Setting up LVM storage for Incus..."
-    
-    # Check if vg_incus already exists
+
+    # If the VG already exists we have nothing to do.
     if vgs "$LVM_VG_NAME" &>/dev/null; then
         echo "[INFO] Volume group $LVM_VG_NAME already exists, skipping creation"
         return 0
     fi
-    
-    # Create directory for loop device
+
+    # VG is absent — clean up any stale loop devices or PVs from a
+    # previous partial run before creating fresh ones.
+    echo "[INFO] Cleaning up any stale loop devices backed by $LVM_LOOP_FILE..."
+    for dev in $(losetup -j "$LVM_LOOP_FILE" 2>/dev/null | cut -d: -f1); do
+        echo "[INFO] Detaching stale loop device: $dev"
+        pvremove -ff -y "$dev" 2>/dev/null || true
+        losetup -d "$dev" 2>/dev/null || true
+    done
+
+    # Create directory and loop device file
     mkdir -p "$(dirname "$LVM_LOOP_FILE")"
-    
-    # Create loop device file if it doesn't exist
     if [ ! -f "$LVM_LOOP_FILE" ]; then
         echo "[INFO] Creating loop device file: $LVM_LOOP_FILE ($LVM_LOOP_SIZE)"
         truncate -s "$LVM_LOOP_SIZE" "$LVM_LOOP_FILE"
     else
         echo "[INFO] Loop device file already exists: $LVM_LOOP_FILE"
     fi
-    
+
     # Setup loop device
     echo "[INFO] Setting up loop device..."
     LOOP_DEV=$(losetup -f --show "$LVM_LOOP_FILE")
     echo "[INFO] Loop device created: $LOOP_DEV"
-    
+
     # Create physical volume
     echo "[INFO] Creating physical volume on $LOOP_DEV..."
+    # Wipe any stale filesystem or LVM signatures so pvcreate
+    # does not fail on a device that was partially initialised.
+    wipefs -af "$LOOP_DEV" 2>/dev/null || true
+    pvremove -ff -y "$LOOP_DEV" 2>/dev/null || true
     pvcreate "$LOOP_DEV"
-    
+
     # Create volume group
     echo "[INFO] Creating volume group: $LVM_VG_NAME..."
     vgcreate "$LVM_VG_NAME" "$LOOP_DEV"
@@ -295,15 +322,46 @@ setup_lvm_storage
 # Start Incus
 # --------------------------------------------------
 
+echo "[INFO] Stopping any existing Incus daemon..."
+
+# Force-kill any running incusd and remove stale socket files so
+# the new daemon always starts from a completely clean state.
+if pgrep -x incusd >/dev/null 2>&1; then
+    echo "[INFO] Stopping incusd..."
+    pkill -9 incusd 2>/dev/null || true
+    sleep 1
+fi
+rm -f /run/incus/unix.socket
+rm -f /var/run/incus/unix.socket
+rm -f /var/lib/incus/unix.socket
+
+# Use a fresh log file each run to avoid permission errors if the
+# file was previously created by a different user/process.
+INCUSD_LOG=$(mktemp /tmp/incusd.XXXX.log)
+echo "[INFO] incusd log: $INCUSD_LOG"
+
 echo "[INFO] Starting incusd..."
-pkill incusd 2>/dev/null || true
+nohup /usr/local/bin/incusd --group incus-admin >"$INCUSD_LOG" 2>&1 &
 
-nohup /usr/local/bin/incusd >/tmp/incusd.log 2>&1 &
+echo "[INFO] Waiting for incusd to become ready..."
+for i in {1..30}; do
+    if /usr/local/bin/incus admin waitready --timeout=1 >/dev/null 2>&1; then
+        break
+    fi
+    if ! pgrep -x incusd >/dev/null 2>&1; then
+        echo "[ERROR] incusd exited unexpectedly"
+        cat "$INCUSD_LOG"
+        exit 1
+    fi
+    sleep 1
+done
 
-sleep 10
-
-pgrep incusd
-/usr/local/bin/incus admin waitready
+echo "[INFO] Verifying daemon..."
+if ! /usr/local/bin/incus admin waitready --timeout=5 >/dev/null 2>&1; then
+    echo "[ERROR] incusd is not responding"
+    cat "$INCUSD_LOG"
+    exit 1
+fi
 
 # --------------------------------------------------
 # Initialize Incus
@@ -331,25 +389,53 @@ else
             echo "[ERROR] Config file not found: $CONFIG_FILE"
             exit 1
         fi
-        
+
+        echo "[INFO] Verifying daemon..."
+
+        if ! /usr/local/bin/incus admin waitready --timeout=5; then
+            echo "[ERROR] incusd not ready"
+            cat "$INCUSD_LOG"
+            exit 1
+        fi
+
         # Try preseed initialization
-        if /usr/local/bin/incus admin init --preseed < "$CONFIG_FILE" 2>/dev/null; then
+        if timeout 60 /usr/local/bin/incus admin init --preseed < "$CONFIG_FILE"; then
             echo "[INFO] Preseed initialization successful"
         else
-            echo "[WARN] Preseed initialization failed. Falling back to manual configuration..."
+            RC=$?
+            if [ "$RC" = "124" ]; then
+                echo "[ERROR] Preseed initialization timed out"
+            fi
+            echo "[ERROR] Preseed initialization failed"
+            cat "$INCUSD_LOG" || true
+            echo "[WARN] Falling back to manual configuration..."
             PRESEED_FAILED=true
+
+            # Re-query state after preseed failure — preseed may have
+            # partially succeeded (e.g. created the pool but not the
+            # network). Using stale pre-preseed values would cause
+            # 'already exists' errors in the manual path below.
+            STORAGE_EXISTS=$(/usr/local/bin/incus storage list --format csv 2>/dev/null | grep -q "^default," && echo "true" || echo "false")
+            NETWORK_EXISTS=$(/usr/local/bin/incus network list --format csv 2>/dev/null | grep "^incusbr0," | grep -q ",YES," && echo "true" || echo "false")
+            echo "[INFO] Post-preseed state — storage: $STORAGE_EXISTS, network: $NETWORK_EXISTS"
         fi
     else
         echo "[INFO] Partial configuration detected (storage: $STORAGE_EXISTS, network: $NETWORK_EXISTS)"
         echo "[INFO] Using manual configuration for idempotent setup..."
         PRESEED_FAILED=true
     fi
-    
+
     # Manual configuration (runs if preseed failed or partial state exists)
     if [ "${PRESEED_FAILED:-false}" = "true" ]; then
         # Create network if it doesn't exist
         if [ "$NETWORK_EXISTS" = "false" ]; then
             echo "[INFO] Creating network incusbr0..."
+            # Remove stale kernel bridge if a previous partial run left one behind
+            if ip link show incusbr0 >/dev/null 2>&1; then
+                echo "[INFO] Removing stale bridge incusbr0..."
+                ip link set incusbr0 down || true
+                ip link delete incusbr0 || true
+            fi
             /usr/local/bin/incus network create incusbr0 \
                 ipv4.address=auto \
                 ipv4.nat=true \
@@ -380,6 +466,10 @@ else
     
     /usr/local/bin/incus profile set default security.nesting=true
     /usr/local/bin/incus profile set default security.syscalls.deny_default=false
+    if [ "$ARCH" = "ppc64le" ]; then
+        /usr/local/bin/incus profile set default limits.memory=16GiB
+        /usr/local/bin/incus profile set default raw.qemu="-m 16384M,slots=0,maxmem=16384M"
+    fi
 fi
 
 # --------------------------------------------------
@@ -400,3 +490,5 @@ echo ""
 echo "[INFO] Incus installation and configuration completed"
 echo "[INFO] Base image import will be handled by the calling script"
 echo ""
+
+
