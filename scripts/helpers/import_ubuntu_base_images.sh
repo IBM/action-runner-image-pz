@@ -2,19 +2,28 @@
 ################################################################################
 ##  File:  import_ubuntu_base_images.sh
 ##  Desc:  Architecture-aware Ubuntu base image import for Incus
-##  Usage: Source this file and call import_ubuntu_base_images
+##  Usage: Source this file and call import_ubuntu_base_images [container|vm]
 ##         Automatically selects import method based on system architecture:
 ##         - x86_64/aarch64: Uses Incus image server (fast, pre-configured)
 ##         - ppc64le/s390x: Uses Distrobuilder (custom build required)
+##  Args:  $1 - Image type: "container" (default) or "vm"
 ################################################################################
 
 # Note: Do NOT use 'set -e' in sourced scripts as it affects the parent shell
 
 import_ubuntu_base_images() {
+    local IMAGE_TYPE="${1:-container}"  # Default to container if not specified
     local ORIGINAL_DIR
     ORIGINAL_DIR=$(pwd)
     local SYSTEM_ARCH="${ARCH:-$(uname -m)}"
     local HELPERS_DIR="${HELPERS_DIR:-$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")}"
+    
+    # Validate image type
+    if [[ "$IMAGE_TYPE" != "container" ]] && [[ "$IMAGE_TYPE" != "vm" ]]; then
+        echo "Error: Invalid image type: $IMAGE_TYPE"
+        echo "Must be 'container' or 'vm'"
+        return 1
+    fi
     
     echo ""
     echo "=========================================="
@@ -22,6 +31,7 @@ import_ubuntu_base_images() {
     echo "=========================================="
     echo ""
     echo "Detected system architecture: ${SYSTEM_ARCH}"
+    echo "Image type: ${IMAGE_TYPE}"
     echo ""
     
     # Determine import method based on architecture
@@ -30,8 +40,13 @@ import_ubuntu_base_images() {
     
     case "$SYSTEM_ARCH" in
         x86_64|aarch64)
-            IMPORT_METHOD="incus-server"
-            METHOD_DESC="Incus Image Server (fast, pre-configured images)"
+            if [[ "$IMAGE_TYPE" == "vm" ]]; then
+                IMPORT_METHOD="distrobuilder"
+                METHOD_DESC="Distrobuilder (VM images not available on Incus server)"
+            else
+                IMPORT_METHOD="incus-server"
+                METHOD_DESC="Incus Image Server (fast, pre-configured images)"
+            fi
             ;;
         ppc64le|s390x)
             IMPORT_METHOD="distrobuilder"
@@ -69,11 +84,13 @@ import_ubuntu_base_images() {
                     return 1
                 fi
             else
-                echo "Building Ubuntu 22.04 with Distrobuilder..."
+                echo "Building Ubuntu 22.04 ${IMAGE_TYPE} with Distrobuilder..."
                 # shellcheck disable=SC1090,SC1091
                 source "${HELPERS_DIR}/build-distrobuilder-image.sh"
-                if ! build_distrobuilder_ubuntu_image "22.04"; then
-                    echo "Error: Failed to build Ubuntu 22.04"
+                local BUILD_VM="false"
+                [[ "$IMAGE_TYPE" == "vm" ]] && BUILD_VM="true"
+                if ! build_distrobuilder_ubuntu_image "22.04" "${SYSTEM_ARCH}" "$HOME/incus-images/official-ubuntu" "$BUILD_VM"; then
+                    echo "Error: Failed to build Ubuntu 22.04 ${IMAGE_TYPE}"
                     cd "$ORIGINAL_DIR" || return 1
                     return 1
                 fi
@@ -91,11 +108,13 @@ import_ubuntu_base_images() {
                     return 1
                 fi
             else
-                echo "Building Ubuntu 24.04 with Distrobuilder..."
+                echo "Building Ubuntu 24.04 ${IMAGE_TYPE} with Distrobuilder..."
                 # shellcheck disable=SC1090,SC1091
                 source "${HELPERS_DIR}/build-distrobuilder-image.sh"
-                if ! build_distrobuilder_ubuntu_image "24.04"; then
-                    echo "Error: Failed to build Ubuntu 24.04"
+                local BUILD_VM="false"
+                [[ "$IMAGE_TYPE" == "vm" ]] && BUILD_VM="true"
+                if ! build_distrobuilder_ubuntu_image "24.04" "${SYSTEM_ARCH}" "$HOME/incus-images/official-ubuntu" "$BUILD_VM"; then
+                    echo "Error: Failed to build Ubuntu 24.04 ${IMAGE_TYPE}"
                     cd "$ORIGINAL_DIR" || return 1
                     return 1
                 fi
@@ -120,18 +139,20 @@ import_ubuntu_base_images() {
                     return 1
                 fi
             else
-                echo "Building Ubuntu 22.04 with Distrobuilder..."
+                echo "Building Ubuntu 22.04 ${IMAGE_TYPE} with Distrobuilder..."
                 # shellcheck disable=SC1090,SC1091
                 source "${HELPERS_DIR}/build-distrobuilder-image.sh"
-                if ! build_distrobuilder_ubuntu_image "22.04"; then
-                    echo "Error: Failed to build Ubuntu 22.04"
+                local BUILD_VM="false"
+                [[ "$IMAGE_TYPE" == "vm" ]] && BUILD_VM="true"
+                if ! build_distrobuilder_ubuntu_image "22.04" "${SYSTEM_ARCH}" "$HOME/incus-images/official-ubuntu" "$BUILD_VM"; then
+                    echo "Error: Failed to build Ubuntu 22.04 ${IMAGE_TYPE}"
                     cd "$ORIGINAL_DIR" || return 1
                     return 1
                 fi
                 echo ""
-                echo "Building Ubuntu 24.04 with Distrobuilder..."
-                if ! build_distrobuilder_ubuntu_image "24.04"; then
-                    echo "Error: Failed to build Ubuntu 24.04"
+                echo "Building Ubuntu 24.04 ${IMAGE_TYPE} with Distrobuilder..."
+                if ! build_distrobuilder_ubuntu_image "24.04" "${SYSTEM_ARCH}" "$HOME/incus-images/official-ubuntu" "$BUILD_VM"; then
+                    echo "Error: Failed to build Ubuntu 24.04 ${IMAGE_TYPE}"
                     cd "$ORIGINAL_DIR" || return 1
                     return 1
                 fi
