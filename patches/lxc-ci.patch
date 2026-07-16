@@ -1,0 +1,217 @@
+diff --git a/images/ubuntu.yaml b/images/ubuntu.yaml
+index 81be31e8..c1d1851c 100644
+--- a/images/ubuntu.yaml
++++ b/images/ubuntu.yaml
+@@ -498,6 +498,14 @@ packages:
+     types:
+     - vm
+ 
++  - packages:
++    - grub-ieee1275
++    action: install
++    architectures:
++    - ppc64el
++    types:
++    - vm
++
+   - packages:
+     - shim-signed
+     action: install
+@@ -648,6 +656,26 @@ actions:
+ 
+     update-grub
+     sed -i "s#root=[^ ]*#root=${DISTROBUILDER_ROOT_UUID}#g" /boot/grub/grub.cfg
++  architectures:
++  - amd64
++  - arm64
++  types:
++  - vm
++
++- trigger: post-files
++  action: |-
++    #!/bin/sh
++    set -eux
++
++    # Install GRUB for PowerPC IEEE1275 (used by SLOF on pseries)
++    LOOP_DEV="${DISTROBUILDER_LOOP_DEVICE}"
++    if [ -n "${LOOP_DEV}" ]; then
++      grub-install --target=powerpc-ieee1275 "${LOOP_DEV}p1"
++    fi
++    grub-mkconfig -o /boot/grub/grub.cfg
++    sed -i "s#root=[^ ]*#root=${DISTROBUILDER_ROOT_UUID}#g" /boot/grub/grub.cfg
++  architectures:
++  - ppc64el
+   types:
+   - vm
+ 
+
+diff --git a/images/ubuntu.yaml b/images/ubuntu.yaml
+index c1d1851c..923f2d45 100644
+--- a/images/ubuntu.yaml
++++ b/images/ubuntu.yaml
+@@ -670,7 +670,7 @@ actions:
+     # Install GRUB for PowerPC IEEE1275 (used by SLOF on pseries)
+     LOOP_DEV="${DISTROBUILDER_LOOP_DEVICE}"
+     if [ -n "${LOOP_DEV}" ]; then
+-      grub-install --target=powerpc-ieee1275 "${LOOP_DEV}p1"
++      grub-install --target=powerpc-ieee1275 --no-nvram \"${LOOP_DEV}p1\" || grub-install --target=powerpc-ieee1275 \"${LOOP_DEV}p1\"
+     fi
+     grub-mkconfig -o /boot/grub/grub.cfg
+     sed -i "s#root=[^ ]*#root=${DISTROBUILDER_ROOT_UUID}#g" /boot/grub/grub.cfg
+
+diff --git a/images/ubuntu.yaml b/images/ubuntu.yaml
+index 923f2d45..d3b83d84 100644
+--- a/images/ubuntu.yaml
++++ b/images/ubuntu.yaml
+@@ -670,7 +670,9 @@ actions:
+     # Install GRUB for PowerPC IEEE1275 (used by SLOF on pseries)
+     LOOP_DEV="${DISTROBUILDER_LOOP_DEVICE}"
+     if [ -n "${LOOP_DEV}" ]; then
+-      grub-install --target=powerpc-ieee1275 --no-nvram \"${LOOP_DEV}p1\" || grub-install --target=powerpc-ieee1275 \"${LOOP_DEV}p1\"
++      # /dev/nvram may not exist in the build chroot
++      touch /dev/nvram 2>/dev/null || true
++      grub-install --target=powerpc-ieee1275 \"${LOOP_DEV}p1\" 2>&1 || grub-install --target=powerpc-ieee1275 --no-nvram \"${LOOP_DEV}p1\"
+     fi
+     grub-mkconfig -o /boot/grub/grub.cfg
+     sed -i "s#root=[^ ]*#root=${DISTROBUILDER_ROOT_UUID}#g" /boot/grub/grub.cfg
+diff --git a/images/ubuntu.yaml b/images/ubuntu.yaml
+index 9cb7ca28..145a7169 100644
+--- a/images/ubuntu.yaml
++++ b/images/ubuntu.yaml
+@@ -506,6 +506,14 @@ packages:
+     types:
+     - vm
+ 
++  - packages:
++    - s390-tools
++    action: install
++    architectures:
++    - s390x
++    types:
++    - vm
++
+   - packages:
+     - shim-signed
+     action: install
+@@ -570,6 +578,13 @@ actions:
+     #!/bin/sh
+     set -eux
+ 
++    # Force apt to use IPv4 to avoid failures on hosts with no IPv6 connectivity
++    mkdir -p /etc/apt/apt.conf.d
++    echo 'Acquire::ForceIPv4 "true";' > /etc/apt/apt.conf.d/99force-ipv4
++
++    # Add hosts entry so apt does not need DNS to reach the ports mirror
++    echo "172.66.152.176 ports.ubuntu.com" >> /etc/hosts
++
+     # Make sure systemd doesn't think it's running.
+     [ ! -d /run/systemd ] && exit 0
+     rm -Rf /run/systemd/system
+@@ -688,6 +703,43 @@ actions:
+   types:
+   - vm
+ 
++- trigger: post-files
++  action: |-
++    #!/bin/sh
++    set -eux
++
++    # Install zipl bootloader for s390x
++    LOOP_DEV="${DISTROBUILDER_LOOP_DEVICE}"
++    KERNEL=$(ls /boot/vmlinuz-* | head -n1)
++    INITRD=$(ls /boot/initrd.img-* | head -n1)
++
++    # Create zipl configuration
++    cat > /etc/zipl.conf <<'ZIPLEOF'
++    [defaultboot]
++    default = Ubuntu
++    target = /boot
++    targetbase = LOOPDEV_PLACEHOLDER
++    targettype = scsi
++    targetblocksize = 512
++    targetoffset = 2048
++
++    [Ubuntu]
++    image = KERNEL_PLACEHOLDER
++    ramdisk = INITRD_PLACEHOLDER
++    parameters = "root=ROOT_UUID_PLACEHOLDER ro console=ttysclp0"
++    ZIPLEOF
++    sed -i "s|KERNEL_PLACEHOLDER|${KERNEL}|" /etc/zipl.conf
++    sed -i "s|INITRD_PLACEHOLDER|${INITRD}|" /etc/zipl.conf
++    sed -i "s|ROOT_UUID_PLACEHOLDER|${DISTROBUILDER_ROOT_UUID}|" /etc/zipl.conf
++    sed -i "s|LOOPDEV_PLACEHOLDER|${LOOP_DEV}|" /etc/zipl.conf
++
++    # Install zipl
++    zipl -V -c /etc/zipl.conf
++  architectures:
++  - s390x
++  types:
++  - vm
++
+ - trigger: post-files
+   action: |-
+     #!/bin/sh
+diff --git a/images/ubuntu.yaml b/images/ubuntu.yaml
+index 145a7169..a32a721d 100644
+--- a/images/ubuntu.yaml
++++ b/images/ubuntu.yaml
+@@ -352,7 +352,9 @@ files:
+     network:
+       version: 2
+       ethernets:
+-        enp5s0:
++        id0:
++          match:
++            name: "en*"
+           dhcp4: true
+           dhcp-identifier: mac
+   types:
+diff --git a/images/ubuntu.yaml b/images/ubuntu.yaml
+index a32a721d..1429e76b 100644
+--- a/images/ubuntu.yaml
++++ b/images/ubuntu.yaml
+@@ -580,13 +580,6 @@ actions:
+     #!/bin/sh
+     set -eux
+ 
+-    # Force apt to use IPv4 to avoid failures on hosts with no IPv6 connectivity
+-    mkdir -p /etc/apt/apt.conf.d
+-    echo 'Acquire::ForceIPv4 "true";' > /etc/apt/apt.conf.d/99force-ipv4
+-
+-    # Add hosts entry so apt does not need DNS to reach the ports mirror
+-    echo "172.66.152.176 ports.ubuntu.com" >> /etc/hosts
+-
+     # Make sure systemd doesn't think it's running.
+     [ ! -d /run/systemd ] && exit 0
+     rm -Rf /run/systemd/system
+@@ -716,24 +709,20 @@ actions:
+     INITRD=$(ls /boot/initrd.img-* | head -n1)
+ 
+     # Create zipl configuration
+-    cat > /etc/zipl.conf <<'ZIPLEOF'
++    cat > /etc/zipl.conf << EOF
+     [defaultboot]
+     default = Ubuntu
+     target = /boot
+-    targetbase = LOOPDEV_PLACEHOLDER
++    targetbase = ${LOOP_DEV}
+     targettype = scsi
+     targetblocksize = 512
+     targetoffset = 2048
+ 
+     [Ubuntu]
+-    image = KERNEL_PLACEHOLDER
+-    ramdisk = INITRD_PLACEHOLDER
+-    parameters = "root=ROOT_UUID_PLACEHOLDER ro console=ttysclp0"
+-    ZIPLEOF
+-    sed -i "s|KERNEL_PLACEHOLDER|${KERNEL}|" /etc/zipl.conf
+-    sed -i "s|INITRD_PLACEHOLDER|${INITRD}|" /etc/zipl.conf
+-    sed -i "s|ROOT_UUID_PLACEHOLDER|${DISTROBUILDER_ROOT_UUID}|" /etc/zipl.conf
+-    sed -i "s|LOOPDEV_PLACEHOLDER|${LOOP_DEV}|" /etc/zipl.conf
++    image = ${KERNEL}
++    ramdisk = ${INITRD}
++    parameters = "root=${DISTROBUILDER_ROOT_UUID} ro console=ttysclp0"
++    EOF
+ 
+     # Install zipl
+     zipl -V -c /etc/zipl.conf

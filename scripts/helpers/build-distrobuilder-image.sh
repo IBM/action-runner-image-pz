@@ -151,7 +151,7 @@ install_dependencies() {
     log_success "Dependencies installed"
 }
 
-# Function to build and install distrobuilder with ppc64le VM patches
+# Function to build and install distrobuilder with IBM platform VM patches
 install_distrobuilder() {
     log_info "Checking distrobuilder installation..."
     
@@ -163,10 +163,10 @@ install_distrobuilder() {
         return 0
     fi
     
-    log_info "Building distrobuilder from source with ppc64le VM patches..."
+    log_info "Building distrobuilder from source with IBM platform VM patches..."
     
     echo "Repo root: ${REPO_ROOT}"
-    echo "Patch file: ${REPO_ROOT}/patches/distrobuilder-ppc64le.patch"
+    echo "Patch file: ${REPO_ROOT}/patches/distrobuilder.patch"
     
     # Create temporary build directory
     local build_dir
@@ -183,12 +183,11 @@ install_distrobuilder() {
     
     cd distrobuilder || return 1
     
-    # Apply ppc64le VM patches
-    local patch_file="${REPO_ROOT}/patches/distrobuilder-ppc64le.patch"
-    local fstab_patch="${REPO_ROOT}/patches/distrobuilder-fstab-ppc64le.patch"
+    # Apply IBM platform VM patches (covers ppc64le + s390x + fstab fixes)
+    local patch_file="${REPO_ROOT}/patches/distrobuilder.patch"
     
     if [[ -f "$patch_file" ]]; then
-        log_info "Applying ppc64le VM support patches..."
+        log_info "Applying IBM platform VM support patches..."
         if patch -p1 < "$patch_file"; then
             log_success "Patches applied successfully"
         else
@@ -197,20 +196,7 @@ install_distrobuilder() {
         fi
     else
         log_warn "Patch file not found: $patch_file"
-        log_warn "Building without ppc64le VM patches"
-    fi
-    
-    if [[ -f "$fstab_patch" ]]; then
-        log_info "Applying ppc64le fstab patches..."
-        if patch -p1 < "$fstab_patch"; then
-            log_success "fstab patches applied successfully"
-        else
-            log_warn "Failed to apply fstab patches (may already be applied or incompatible)"
-            log_warn "Continuing with build..."
-        fi
-    else
-        log_warn "Patch file not found: $fstab_patch"
-        log_warn "Building without ppc64le fstab patches"
+        log_warn "Building without IBM platform VM patches"
     fi
     
     # Build distrobuilder
@@ -248,51 +234,6 @@ install_distrobuilder() {
         log_error "distrobuilder installation verification failed"
         return 1
     fi
-}
-
-# Apply a generic netplan match rule for Incus VMs.
-# This avoids depending on architecture-specific interface names
-# (for example enp5s0 vs enp0s5).
-patch_netplan_config() {
-    local yaml="$1"
-
-    log_info "Updating Ubuntu netplan configuration to use interface matching..."
-
-    python3 - "$yaml" <<'PY'
-import re
-import sys
-
-path = sys.argv[1]
-
-with open(path) as f:
-    data = f.read()
-
-pattern = (
-    r"^(\s*)enp5s0:\n"
-    r"\1  dhcp4: true\n"
-    r"\1  dhcp-identifier: mac"
-)
-
-replacement = (
-    r"\1primary:\n"
-    r"\1  match:\n"
-    r'\1    name: "en*"\n'
-    r"\1  dhcp4: true\n"
-    r"\1  dhcp-identifier: mac"
-)
-
-new_data, count = re.subn(pattern, replacement, data, flags=re.MULTILINE)
-
-if count != 1:
-    raise RuntimeError(f"Expected to patch 1 netplan block, patched {count}")
-
-with open(path, "w") as f:
-    f.write(new_data)
-
-print("Netplan patch applied")
-PY
-
-    log_success "Netplan configuration updated"
 }
 
 # Main function to build Ubuntu image with distrobuilder
@@ -394,18 +335,13 @@ build_distrobuilder_ubuntu_image() {
     fi
     log_success "Image definition downloaded"
     
-    # Apply netplan configuration patch for VM builds
-    if [[ "$BUILD_VM" == "true" ]]; then
-        patch_netplan_config ubuntu.yaml
-    fi
-    
-    # Apply ppc64le GRUB patches to ubuntu.yaml if repo root was found
+    # Apply IBM platform patches to ubuntu.yaml if repo root was found
     if [[ -n "$repo_root" && -d "$repo_root/patches" ]]; then
-        local yaml_patch="${REPO_ROOT}/patches/lxc-ci-ppc64le.patch"
+        local yaml_patch="${REPO_ROOT}/patches/lxc-ci-ibm-platform.patch"
         log_info "Patch file path: $yaml_patch"
         
         if [[ -f "$yaml_patch" ]]; then
-            log_info "Applying ppc64le GRUB patches to ubuntu.yaml..."
+            log_info "Applying IBM platform patches to ubuntu.yaml..."
             # Create images directory structure for patch to work
             mkdir -p images
             mv ubuntu.yaml images/ubuntu.yaml
@@ -420,10 +356,10 @@ build_distrobuilder_ubuntu_image() {
             rmdir images 2>/dev/null || true
         else
             log_warn "Patch file not found: $yaml_patch"
-            log_warn "Building without ppc64le GRUB patches"
+            log_warn "Building without IBM platform patches"
         fi
     else
-        log_warn "Building without ppc64le GRUB patches (patches directory not found)"
+        log_warn "Building without IBM platform patches (patches directory not found)"
     fi
     
     # Build image with distrobuilder
@@ -437,17 +373,39 @@ build_distrobuilder_ubuntu_image() {
         log_info "Building as virtual machine image"
     fi
     
-    if ! distrobuilder build-incus ubuntu.yaml ${VM_FLAG} \
+    # Mirror selection: try the FAU mirror first (faster, reliable),
+    # fall back to the official Ubuntu ports mirror if it fails.
+    local PRIMARY_MIRROR="https://ftp.fau.de/ubuntu-ports"
+    local FALLBACK_MIRROR="https://ports.ubuntu.com/ubuntu-ports"
+    local SOURCE_URL="$PRIMARY_MIRROR"
+
+    log_info "Checking primary mirror: ${PRIMARY_MIRROR}..."
+    if wget -q --spider --timeout=10 "${PRIMARY_MIRROR}/dists/${CODENAME}/Release" 2>/dev/null; then
+        log_info "Primary mirror reachable — using ${PRIMARY_MIRROR}"
+    else
+        log_warn "Primary mirror unreachable — falling back to ${FALLBACK_MIRROR}"
+        SOURCE_URL="$FALLBACK_MIRROR"
+    fi
+    log_info "Selected mirror: ${SOURCE_URL}"
+
+    # Run distrobuilder. Use PIPESTATUS[0] because the pipeline
+    # (| tee build.log) would otherwise mask a non-zero exit code.
+    local distro_rc=0
+    distrobuilder build-incus ubuntu.yaml ${VM_FLAG} \
         -o image.architecture="${ARCH}" \
         -o image.release="${CODENAME}" \
         -o image.variant=default \
-        -o source.url=http://ports.ubuntu.com/ubuntu-ports 2>&1 | tee build.log; then
-        log_error "Failed to build image with distrobuilder"
+        -o source.url="${SOURCE_URL}" 2>&1 | tee build.log
+    distro_rc=${PIPESTATUS[0]}
+
+    if [[ "$distro_rc" -ne 0 ]]; then
+        log_error "distrobuilder exited with status ${distro_rc}"
+        log_error "Mirror used: ${SOURCE_URL}"
         log_error "Check build.log for details"
         cleanup_files
         return 1
     fi
-    
+
     log_success "Image build completed"
     
     # Check for generated artifacts (different for VMs vs containers)

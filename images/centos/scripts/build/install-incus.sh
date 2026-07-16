@@ -352,7 +352,7 @@ echo "[INFO] Starting incusd..."
 nohup /usr/local/bin/incusd --group incus-admin >"$INCUSD_LOG" 2>&1 &
 
 echo "[INFO] Waiting for incusd to become ready..."
-for i in {1..30}; do
+for _ in {1..30}; do
     if /usr/local/bin/incus admin waitready --timeout=1 >/dev/null 2>&1; then
         break
     fi
