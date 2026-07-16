@@ -3,7 +3,7 @@ name: Bug report
 about: Create a bug report
 title: ''
 labels: bug, needs triage
-assignees: '@gha-sre'
+assignees: pleia2, clnperez, janani66
 
 ---
 
