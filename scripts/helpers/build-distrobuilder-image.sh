@@ -337,7 +337,7 @@ build_distrobuilder_ubuntu_image() {
     
     # Apply IBM platform patches to ubuntu.yaml if repo root was found
     if [[ -n "$repo_root" && -d "$repo_root/patches" ]]; then
-        local yaml_patch="${REPO_ROOT}/patches/lxc-ci-ibm-platform.patch"
+        local yaml_patch="${REPO_ROOT}/patches/lxc-ci.patch"
         log_info "Patch file path: $yaml_patch"
         
         if [[ -f "$yaml_patch" ]]; then
