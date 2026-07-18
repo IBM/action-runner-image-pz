@@ -351,6 +351,16 @@ build_image() {
     incus init "${INCUS_VM}" "${BUILD_VM}" --vm --ephemeral
   fi
 
+  # Verify the instance was actually created as a VM, not a container.
+  # This can happen silently if the source image is the wrong type.
+  local INSTANCE_TYPE
+  INSTANCE_TYPE=$(incus info "${BUILD_VM}" | awk '/^Type:/{print $2}')
+  if [[ "${INSTANCE_TYPE}" != "virtual-machine" ]]; then
+    msg "Error: '${BUILD_VM}' was created as type '${INSTANCE_TYPE}', expected 'virtual-machine'." >&2
+    msg "The source image '${INCUS_VM}' may not be a VM image." >&2
+    return 1
+  fi
+
   incus ls
 
   # Configure CPU and memory resources
@@ -531,23 +541,43 @@ build_image() {
 
 run() {
   # First ensure Incus is installed and configured
-  ensure_incus "$@"
+  ensure_incus
   
-  # After Incus is ready, check and import base images if needed
-  # This runs in the main script context, so interactive prompts work
+  # After Incus is ready, check and import the base VM image if needed
   echo ""
-  echo "Checking for Ubuntu base VM images..."
-  
-  if incus image list --format=csv | grep -q "ubuntu-22.04-vm\|ubuntu-24.04-vm"; then
-    echo "Ubuntu base VM images found. Skipping import."
+  echo "Checking for Ubuntu ${IMAGE_VERSION} base VM image..."
+
+  # shellcheck disable=SC2154
+  local BASE_ALIAS="ubuntu-${IMAGE_VERSION}-vm"
+
+  if [[ "${SKIP_INCUS_BASE_IMG}" == "true" ]]; then
+    echo "Skipping base image import (--skip-incus-base-img)"
+  elif incus image list --format=csv | grep -q "${BASE_ALIAS}"; then
+    # Verify the existing image is actually a virtual-machine, not a container
+    local BASE_TYPE
+    BASE_TYPE=$(incus image info "${BASE_ALIAS}" | awk '/^Type:/{print $2}')
+    if [[ "${BASE_TYPE}" != "virtual-machine" ]]; then
+      echo "Error: Base image '${BASE_ALIAS}' exists but is type '${BASE_TYPE}', expected 'virtual-machine'." >&2
+      echo "Delete it with: sudo incus image delete ${BASE_ALIAS}" >&2
+      return 1
+    fi
+    echo "Base image '${BASE_ALIAS}' found (type: virtual-machine). Skipping import."
   else
-    echo "No Ubuntu base VM images found. Starting import..."
-    # Source and call the import function
+    echo "Base image '${BASE_ALIAS}' not found. Building now..."
     # shellcheck disable=SC1091
     source "${HELPERS_DIR}/import_ubuntu_base_images.sh"
-    import_ubuntu_base_images "vm"
+    if ! import_ubuntu_base_images "vm" "${IMAGE_VERSION}"; then
+      echo "Error: Failed to build/import base image '${BASE_ALIAS}'. Aborting." >&2
+      return 1
+    fi
+    # Verify the image actually landed in Incus before proceeding
+    if ! incus image info "${BASE_ALIAS}" &>/dev/null; then
+      echo "Error: Base image '${BASE_ALIAS}' not found in Incus after import. Aborting." >&2
+      return 1
+    fi
+    echo "Base image '${BASE_ALIAS}' confirmed in Incus."
   fi
-  
+
   # Now build the VM image
   build_image "$@"
   return $?

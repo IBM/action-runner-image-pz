@@ -26,6 +26,7 @@ usage() {
     echo "  --skip-incus-publish    Skip Incus publish"
     echo "  --skip-incus-snapshot   Skip Incus snapshot"
     echo "  --delete-incus-img      Delete the existing Incus image before building"
+    echo "  --skip-incus-base-img   Skip building/importing the Incus base OS image"
     echo "  -h, --help              Show this help"
     echo ""
     # Use return 1 instead of exit 1 because this script is sourced
@@ -46,6 +47,7 @@ SKIP_INCUS_IMG_PRIMER=false
 SKIP_INCUS_PUBLISH=false
 SKIP_INCUS_SNAPSHOT=false
 DELETE_INCUS_IMG=false
+SKIP_INCUS_BASE_IMG=false
 ARCH=${ARCH:-$(uname -m)}
 PATCH_FILE="${PATCH_FILE:-runner-sdk8-${ARCH}.patch}"
 
@@ -120,6 +122,11 @@ while [[ $# -gt 0 ]]; do
         --delete-incus-img)
             # shellcheck disable=SC2034
             DELETE_INCUS_IMG=true
+            forward_args+=("$1")
+            ;;
+        --skip-incus-base-img)
+            # shellcheck disable=SC2034
+            SKIP_INCUS_BASE_IMG=true
             forward_args+=("$1")
             ;;
         -h|--help)
