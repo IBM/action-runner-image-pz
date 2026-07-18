@@ -151,28 +151,48 @@ install_dependencies() {
     log_success "Dependencies installed"
 }
 
-# Function to build and install distrobuilder with IBM platform VM patches
+# Function to build and install distrobuilder with IBM platform VM patches.
+# Rebuilds automatically whenever patches/distrobuilder.patch changes (stamp-file check).
 install_distrobuilder() {
     log_info "Checking distrobuilder installation..."
-    
-    # Check if distrobuilder is already installed
-    if command -v distrobuilder &>/dev/null; then
+
+    local patch_file="${REPO_ROOT}/patches/distrobuilder.patch"
+    local stamp_file="/usr/local/bin/distrobuilder.patch.sha256"
+
+    # Compute current patch checksum (empty string if patch file absent)
+    local current_sha=""
+    if [[ -f "$patch_file" ]]; then
+        current_sha=$(sha256sum "$patch_file" | awk '{print $1}')
+    fi
+
+    # Read the checksum that was in effect when the binary was last built
+    local installed_sha=""
+    if [[ -f "$stamp_file" ]]; then
+        installed_sha=$(cat "$stamp_file")
+    fi
+
+    # Skip rebuild only when the binary exists AND the patch hasn't changed
+    if command -v distrobuilder &>/dev/null && [[ "$current_sha" == "$installed_sha" ]]; then
         local version
         version=$(distrobuilder --version 2>&1 | head -n1 || echo "unknown")
-        log_info "distrobuilder already installed: ${version}"
+        log_info "distrobuilder already installed and up-to-date: ${version}"
         return 0
     fi
-    
-    log_info "Building distrobuilder from source with IBM platform VM patches..."
-    
-    echo "Repo root: ${REPO_ROOT}"
-    echo "Patch file: ${REPO_ROOT}/patches/distrobuilder.patch"
-    
+
+    if command -v distrobuilder &>/dev/null; then
+        log_info "Patch checksum changed — rebuilding distrobuilder with updated patches..."
+    else
+        log_info "Building distrobuilder from source with IBM platform VM patches..."
+    fi
+
+    log_info "Repo root: ${REPO_ROOT}"
+    log_info "Patch file: ${patch_file}"
+
     # Create temporary build directory
     local build_dir
     build_dir=$(mktemp -d)
     cd "$build_dir" || return 1
-    
+
     # Clone distrobuilder
     log_info "Cloning distrobuilder repository..."
     if ! git clone -q https://github.com/lxc/distrobuilder; then
@@ -180,25 +200,26 @@ install_distrobuilder() {
         rm -rf "$build_dir"
         return 1
     fi
-    
+
     cd distrobuilder || return 1
-    
+
     # Apply IBM platform VM patches (covers ppc64le + s390x + fstab fixes)
-    local patch_file="${REPO_ROOT}/patches/distrobuilder.patch"
-    
     if [[ -f "$patch_file" ]]; then
         log_info "Applying IBM platform VM support patches..."
-        if patch -p1 < "$patch_file"; then
-            log_success "Patches applied successfully"
-        else
-            log_warn "Failed to apply patches (may already be applied or incompatible)"
-            log_warn "Continuing with build..."
+        if ! patch -p1 < "$patch_file"; then
+            log_error "Failed to apply distrobuilder patches — patch did not apply cleanly."
+            log_error "The patch may be out of sync with the upstream distrobuilder source."
+            rm -rf "$build_dir"
+            return 1
         fi
+        log_success "Patches applied successfully"
     else
-        log_warn "Patch file not found: $patch_file"
-        log_warn "Building without IBM platform VM patches"
+        log_error "Patch file not found: $patch_file"
+        log_error "Cannot build a correctly patched distrobuilder without it."
+        rm -rf "$build_dir"
+        return 1
     fi
-    
+
     # Build distrobuilder
     log_info "Building distrobuilder (this may take a few minutes)..."
     if ! make >/dev/null 2>&1; then
@@ -206,25 +227,27 @@ install_distrobuilder() {
         rm -rf "$build_dir"
         return 1
     fi
-    
+
     # Install binary
     local gobin
     gobin="$(go env GOPATH)/bin"
-    
+
     if [[ -f "${gobin}/distrobuilder" ]]; then
         log_info "Installing distrobuilder to /usr/local/bin..."
         install -m 755 "${gobin}/distrobuilder" /usr/local/bin/
+        # Write stamp so we know which patch version this binary was built from
+        echo "$current_sha" > "$stamp_file"
         log_success "distrobuilder installed successfully"
     else
         log_error "distrobuilder binary not found after build"
         rm -rf "$build_dir"
         return 1
     fi
-    
+
     # Cleanup build directory
     cd /
     rm -rf "$build_dir"
-    
+
     # Verify installation
     if command -v distrobuilder &>/dev/null; then
         local version
@@ -271,15 +294,8 @@ build_distrobuilder_ubuntu_image() {
     
     # Check if image already exists
     if check_image_exists "$IMAGE_ALIAS"; then
-        log_warn "Image '${IMAGE_ALIAS}' already exists in Incus"
-        read -p "Do you want to rebuild? (y/N): " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            log_info "Skipping build for ${IMAGE_ALIAS}"
-            return 0
-        fi
-        log_info "Removing existing image..."
-        incus image delete "$IMAGE_ALIAS" || true
+        log_info "Image '${IMAGE_ALIAS}' already exists in Incus. Skipping build."
+        return 0
     fi
     
     # Install dependencies
@@ -317,6 +333,10 @@ build_distrobuilder_ubuntu_image() {
     # Cleanup function
     cleanup_files() {
         log_info "Cleaning up build artifacts..."
+        if [[ -f "$WORKDIR/build.log" ]]; then
+            cp "$WORKDIR/build.log" /tmp/distrobuilder-build.log 2>/dev/null || true
+            log_info "build.log preserved at /tmp/distrobuilder-build.log"
+        fi
         if [[ -d "$WORKDIR" ]]; then
             rm -rf "${WORKDIR:?}"/*
         fi
@@ -335,32 +355,32 @@ build_distrobuilder_ubuntu_image() {
     fi
     log_success "Image definition downloaded"
     
-    # Apply IBM platform patches to ubuntu.yaml if repo root was found
-    if [[ -n "$repo_root" && -d "$repo_root/patches" ]]; then
-        local yaml_patch="${REPO_ROOT}/patches/lxc-ci.patch"
-        log_info "Patch file path: $yaml_patch"
-        
-        if [[ -f "$yaml_patch" ]]; then
-            log_info "Applying IBM platform patches to ubuntu.yaml..."
-            # Create images directory structure for patch to work
-            mkdir -p images
-            mv ubuntu.yaml images/ubuntu.yaml
-            if patch -p1 < "$yaml_patch"; then
-                log_success "ubuntu.yaml patches applied successfully"
-            else
-                log_warn "Failed to apply ubuntu.yaml patches (may already be applied)"
-                log_warn "Continuing with build..."
-            fi
-            # Move ubuntu.yaml back to current directory
-            mv images/ubuntu.yaml ubuntu.yaml
-            rmdir images 2>/dev/null || true
-        else
-            log_warn "Patch file not found: $yaml_patch"
-            log_warn "Building without IBM platform patches"
-        fi
-    else
-        log_warn "Building without IBM platform patches (patches directory not found)"
+    # Apply IBM platform patches to ubuntu.yaml — required for s390x/ppc64le support
+    local yaml_patch="${REPO_ROOT}/patches/lxc-ci.patch"
+    log_info "Patch file path: $yaml_patch"
+
+    if [[ ! -f "$yaml_patch" ]]; then
+        log_error "Patch file not found: $yaml_patch"
+        log_error "Cannot build a correctly patched ubuntu.yaml without it."
+        cleanup_files
+        return 1
     fi
+
+    log_info "Applying IBM platform patches to ubuntu.yaml..."
+    # Create images directory structure matching the patch's path prefix
+    mkdir -p images
+    mv ubuntu.yaml images/ubuntu.yaml
+    if ! patch -p1 < "$yaml_patch"; then
+        log_error "Failed to apply lxc-ci patches — patch did not apply cleanly."
+        log_error "The patch may be out of sync with the upstream ubuntu.yaml."
+        mv images/ubuntu.yaml ubuntu.yaml 2>/dev/null || true
+        rmdir images 2>/dev/null || true
+        cleanup_files
+        return 1
+    fi
+    log_success "ubuntu.yaml patches applied successfully"
+    mv images/ubuntu.yaml ubuntu.yaml
+    rmdir images 2>/dev/null || true
     
     # Build image with distrobuilder
     log_info "Building Ubuntu ${VERSION} ${IMAGE_TYPE} image (this will take several minutes)..."
