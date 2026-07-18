@@ -59,6 +59,8 @@ update_dpkgs
 install_dpkgs jq
 
 if ! is_ubuntu24; then
+    # apt-fast's quick-install.sh requires wget; install it first as it may not be present in the base image
+    install_dpkgs wget
     # Install apt-fast using quick-install.sh
     # https://github.com/ilikenwf/apt-fast
     bash -c "$(curl -fsSL https://raw.githubusercontent.com/ilikenwf/apt-fast/master/quick-install.sh)"
