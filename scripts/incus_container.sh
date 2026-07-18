@@ -335,18 +335,26 @@ run() {
   ensure_incus "$@"
   
   # After Incus is ready, check and import base images if needed
-  # This runs in the main script context, so interactive prompts work
   echo ""
-  echo "Checking for Ubuntu base images..."
-  
-  if incus image list --format=csv | grep -q "ubuntu-22.04\|ubuntu-24.04"; then
-    echo "Ubuntu base images found. Skipping import."
+  echo "Checking for Ubuntu ${IMAGE_VERSION} base container image..."
+
+  local BASE_ALIAS="ubuntu-${IMAGE_VERSION}"
+
+  if incus image info "${BASE_ALIAS}" &>/dev/null; then
+    echo "Base image '${BASE_ALIAS}' found. Skipping import."
   else
-    echo "No Ubuntu base images found. Starting import..."
-    # Source and call the import function
+    echo "Base image '${BASE_ALIAS}' not found. Starting import..."
     # shellcheck disable=SC1091
     source "${HELPERS_DIR}/import_ubuntu_base_images.sh"
-    import_ubuntu_base_images
+    if ! import_ubuntu_base_images "container" "${IMAGE_VERSION}"; then
+      echo "Error: Failed to import base image '${BASE_ALIAS}'. Aborting." >&2
+      return 1
+    fi
+    if ! incus image info "${BASE_ALIAS}" &>/dev/null; then
+      echo "Error: Base image '${BASE_ALIAS}' not found in Incus after import. Aborting." >&2
+      return 1
+    fi
+    echo "Base image '${BASE_ALIAS}' confirmed in Incus."
   fi
   
   # Now build the container image
