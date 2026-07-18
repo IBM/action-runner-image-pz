@@ -27,7 +27,7 @@ CONFIG_FILE="${REPO_ROOT}/scripts/assets/incus_init_host_${ARCH}.yml"
 
 # Version configuration (can be overridden via environment variables)
 RAFT_VERSION="${RAFT_VERSION:-v0.22.1}"
-INCUS_VERSION="${INCUS_VERSION:-v7.1.0}"
+INCUS_VERSION="${INCUS_VERSION:-v7.0.1}"
 
 # LVM configuration (can be overridden via environment variables)
 USE_LVM="${USE_LVM:-true}"
@@ -322,45 +322,46 @@ setup_lvm_storage
 # Start Incus
 # --------------------------------------------------
 
-echo "[INFO] Stopping any existing Incus daemon..."
+# If incusd is already running and responding, skip the restart entirely.
+if /usr/local/bin/incus admin waitready --timeout=5 >/dev/null 2>&1; then
+    echo "[INFO] incusd is already running and healthy — skipping restart."
+else
+    echo "[INFO] Starting incusd..."
 
-# Force-kill any running incusd and remove stale socket files so
-# the new daemon always starts from a completely clean state.
-if pgrep -x incusd >/dev/null 2>&1; then
-    echo "[INFO] Stopping incusd..."
-    pkill -9 incusd 2>/dev/null || true
-    sleep 1
-fi
-rm -f /run/incus/unix.socket
-rm -f /var/run/incus/unix.socket
-rm -f /var/lib/incus/unix.socket
-
-# Use a fresh log file each run to avoid permission errors if the
-# file was previously created by a different user/process.
-INCUSD_LOG=$(mktemp /tmp/incusd.XXXX.log)
-echo "[INFO] incusd log: $INCUSD_LOG"
-
-echo "[INFO] Starting incusd..."
-nohup /usr/local/bin/incusd --group incus-admin >"$INCUSD_LOG" 2>&1 &
-
-echo "[INFO] Waiting for incusd to become ready..."
-for _ in {1..30}; do
-    if /usr/local/bin/incus admin waitready --timeout=1 >/dev/null 2>&1; then
-        break
+    # Kill any unresponsive incusd and remove stale sockets
+    if pgrep -x incusd >/dev/null 2>&1; then
+        echo "[INFO] Stopping unresponsive incusd..."
+        pkill -9 incusd 2>/dev/null || true
+        sleep 1
     fi
-    if ! pgrep -x incusd >/dev/null 2>&1; then
-        echo "[ERROR] incusd exited unexpectedly"
+    rm -f /run/incus/unix.socket
+    rm -f /var/run/incus/unix.socket
+    rm -f /var/lib/incus/unix.socket
+
+    INCUSD_LOG=$(mktemp /tmp/incusd.XXXX.log)
+    echo "[INFO] incusd log: $INCUSD_LOG"
+
+    nohup /usr/local/bin/incusd --group incus-admin >"$INCUSD_LOG" 2>&1 &
+
+    echo "[INFO] Waiting for incusd to become ready..."
+    for _ in {1..30}; do
+        if /usr/local/bin/incus admin waitready --timeout=1 >/dev/null 2>&1; then
+            break
+        fi
+        if ! pgrep -x incusd >/dev/null 2>&1; then
+            echo "[ERROR] incusd exited unexpectedly"
+            cat "$INCUSD_LOG"
+            exit 1
+        fi
+        sleep 1
+    done
+
+    echo "[INFO] Verifying daemon..."
+    if ! /usr/local/bin/incus admin waitready --timeout=5 >/dev/null 2>&1; then
+        echo "[ERROR] incusd is not responding"
         cat "$INCUSD_LOG"
         exit 1
     fi
-    sleep 1
-done
-
-echo "[INFO] Verifying daemon..."
-if ! /usr/local/bin/incus admin waitready --timeout=5 >/dev/null 2>&1; then
-    echo "[ERROR] incusd is not responding"
-    cat "$INCUSD_LOG"
-    exit 1
 fi
 
 # --------------------------------------------------
