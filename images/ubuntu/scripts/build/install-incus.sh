@@ -35,6 +35,18 @@ LVM_LOOP_SIZE="${LVM_LOOP_SIZE:-200G}"
 LVM_VG_NAME="${LVM_VG_NAME:-vg_incus}"
 LVM_LOOP_FILE="/var/lib/incus/disks/incus-lvm.img"
 
+# --------------------------------------------------
+# Early exit if Incus is already installed
+# --------------------------------------------------
+if command -v incusd >/dev/null 2>&1; then
+    INSTALLED_VERSION=$(incusd --version 2>/dev/null | head -n1 || echo "unknown")
+    if echo "$INSTALLED_VERSION" | grep -q "${INCUS_VERSION#v}" && \
+       incus admin waitready --timeout=5 >/dev/null 2>&1; then
+        echo "[INFO] Incus ${INCUS_VERSION} already installed, skipping installation."
+        exit 0
+    fi
+fi
+
 echo "=================================================="
 echo " Installing Incus Environment"
 echo " Architecture : ${ARCH}"
@@ -159,44 +171,25 @@ ldconfig -p | grep cowsql
 
 echo "[INFO] Building Incus..."
 
-# Check if Incus is already installed
-if command -v incusd >/dev/null 2>&1; then
-    INSTALLED_VERSION=$(incusd --version 2>/dev/null | head -n1 || echo "unknown")
-    echo "[INFO] Incus already installed (version: $INSTALLED_VERSION)"
-    
-    # Check if version matches
-    if echo "$INSTALLED_VERSION" | grep -q "${INCUS_VERSION#v}"; then
-        echo "[INFO] Incus version matches ${INCUS_VERSION}, skipping build"
-    else
-        echo "[INFO] Incus version mismatch, rebuilding..."
-        BUILD_INCUS=true
-    fi
-else
-    echo "[INFO] Incus not found, building from source..."
-    BUILD_INCUS=true
+cd /tmp
+
+if [ ! -d incus ]; then
+    git clone --branch "${INCUS_VERSION}" https://github.com/lxc/incus.git
 fi
 
-if [ "${BUILD_INCUS:-false}" = "true" ]; then
-    cd /tmp
+cd incus
+make
 
-    if [ ! -d incus ]; then
-        git clone --branch "${INCUS_VERSION}" https://github.com/lxc/incus.git
-    fi
+GOBIN="$(go env GOPATH)/bin"
 
-    cd incus
-    make
+test -f "${GOBIN}/incusd"
 
-    GOBIN="$(go env GOPATH)/bin"
+install -m 755 "${GOBIN}/incus" /usr/local/bin/
+install -m 755 "${GOBIN}/incusd" /usr/local/bin/
+install -m 755 "${GOBIN}/incus-agent" /usr/local/bin/
+install -m 755 "${GOBIN}/incus-migrate" /usr/local/bin/
 
-    test -f "${GOBIN}/incusd"
-
-    install -m 755 "${GOBIN}/incus" /usr/local/bin/
-    install -m 755 "${GOBIN}/incusd" /usr/local/bin/
-    install -m 755 "${GOBIN}/incus-agent" /usr/local/bin/
-    install -m 755 "${GOBIN}/incus-migrate" /usr/local/bin/
-    
-    echo "[INFO] Incus installed successfully"
-fi
+echo "[INFO] Incus installed successfully"
 
 /usr/local/bin/incusd --version
 
