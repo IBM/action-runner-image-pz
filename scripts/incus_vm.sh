@@ -552,7 +552,7 @@ run() {
 
   if [[ "${SKIP_INCUS_BASE_IMG}" == "true" ]]; then
     echo "Skipping base image import (--skip-incus-base-img)"
-  elif incus image list --format=csv | grep -q "${BASE_ALIAS}"; then
+  elif incus image info "${BASE_ALIAS}" &>/dev/null; then
     # Verify the existing image is actually a virtual-machine, not a container
     local BASE_TYPE
     BASE_TYPE=$(incus image info "${BASE_ALIAS}" | awk '/^Type:/{print $2}')

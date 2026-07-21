@@ -176,19 +176,17 @@ ldconfig -p | grep cowsql
 echo "[INFO] Building Incus..."
 
 # Check if Incus is already installed
-if command -v incusd >/dev/null 2>&1; then
-    INSTALLED_VERSION=$(incusd --version 2>/dev/null | head -n1 || echo "unknown")
+if command -v incus >/dev/null 2>&1; then
+    # Use the client binary version (not incusd --version which returns the
+    # running server version and can differ from the installed binary version)
+    INSTALLED_VERSION=$(/usr/local/bin/incus --version 2>/dev/null | head -n1 || echo "unknown")
     echo "[INFO] Incus already installed (version: $INSTALLED_VERSION)"
-    
-    # Extract major.minor version for comparison (ignore patch version)
-    EXPECTED_VERSION=$(echo "${INCUS_VERSION#v}" | cut -d. -f1-2)  # e.g., 7.1
-    INSTALLED_MAJOR_MINOR=$(echo "$INSTALLED_VERSION" | cut -d. -f1-2)  # e.g., 7.1
-    
-    # Check if major.minor version matches
-    if [ "$INSTALLED_MAJOR_MINOR" = "$EXPECTED_VERSION" ]; then
-        echo "[INFO] Incus version matches ${EXPECTED_VERSION}.x, skipping build"
+
+    # Compare full version string against target
+    if echo "$INSTALLED_VERSION" | grep -q "${INCUS_VERSION#v}"; then
+        echo "[INFO] Incus version matches ${INCUS_VERSION}, skipping build"
     else
-        echo "[INFO] Incus version mismatch (installed: $INSTALLED_VERSION, expected: ${EXPECTED_VERSION}.x), rebuilding..."
+        echo "[INFO] Incus version mismatch (installed: $INSTALLED_VERSION, expected: ${INCUS_VERSION#v}), rebuilding..."
         BUILD_INCUS=true
     fi
 else
