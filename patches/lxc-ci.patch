@@ -16,7 +16,7 @@ index 81be31e..1429e76 100644
 @@ -498,6 +500,22 @@ packages:
      types:
      - vm
- 
+
 +  - packages:
 +    - grub-ieee1275
 +    action: install
@@ -36,8 +36,8 @@ index 81be31e..1429e76 100644
    - packages:
      - shim-signed
      action: install
-@@ -648,6 +666,68 @@ actions:
- 
+@@ -648,6 +666,72 @@ actions:
+
      update-grub
      sed -i "s#root=[^ ]*#root=${DISTROBUILDER_ROOT_UUID}#g" /boot/grub/grub.cfg
 +  architectures:
@@ -61,8 +61,12 @@ index 81be31e..1429e76 100644
 +      echo "(hd0) ${LOOP_DEV}" > /boot/grub/device.map
 +      # Try partition device first (Fedora GRUB needs this), fall back to whole disk
 +      touch /dev/nvram 2>/dev/null || true
-+      if ! grub-install --target=powerpc-ieee1275 "${LOOP_DEV}p1"; then
-+        grub-install --target=powerpc-ieee1275 --no-nvram "${LOOP_DEV}p1"
++      # --skip-fs-probe (-s) prevents grub-install from probing the host's
++      # /boot filesystem (e.g. /dev/md127 RAID) through the chroot mount,
++      # which causes 'unknown filesystem'. The PReP partition (GPT type 4100)
++      # needs no filesystem — grub writes its core image directly to raw space.
++      if ! grub-install --target=powerpc-ieee1275 --skip-fs-probe "${LOOP_DEV}p1"; then
++        grub-install --target=powerpc-ieee1275 --skip-fs-probe --no-nvram "${LOOP_DEV}p1"
 +      fi
 +    fi
 +    grub-mkconfig -o /boot/grub/grub.cfg
@@ -104,3 +108,4 @@ index 81be31e..1429e76 100644
 +  - s390x
    types:
    - vm
+
