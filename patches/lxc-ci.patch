@@ -1,0 +1,106 @@
+diff --git a/images/ubuntu.yaml b/images/ubuntu.yaml
+index 81be31e..1429e76 100644
+--- a/images/ubuntu.yaml
++++ b/images/ubuntu.yaml
+@@ -352,7 +352,9 @@ files:
+     network:
+       version: 2
+       ethernets:
+-        enp5s0:
++        id0:
++          match:
++            name: "en*"
+           dhcp4: true
+           dhcp-identifier: mac
+   types:
+@@ -498,6 +500,22 @@ packages:
+     types:
+     - vm
+ 
++  - packages:
++    - grub-ieee1275
++    action: install
++    architectures:
++    - ppc64el
++    types:
++    - vm
++
++  - packages:
++    - s390-tools
++    action: install
++    architectures:
++    - s390x
++    types:
++    - vm
++
+   - packages:
+     - shim-signed
+     action: install
+@@ -648,6 +666,68 @@ actions:
+ 
+     update-grub
+     sed -i "s#root=[^ ]*#root=${DISTROBUILDER_ROOT_UUID}#g" /boot/grub/grub.cfg
++  architectures:
++  - amd64
++  - arm64
++  types:
++  - vm
++
++- trigger: post-files
++  action: |-
++    #!/bin/sh
++    set -eux
++
++    # Install GRUB for PowerPC IEEE1275 (used by SLOF on pseries)
++    LOOP_DEV="${DISTROBUILDER_LOOP_DEVICE}"
++    if [ -n "${LOOP_DEV}" ]; then
++      # Create /dev/nvram if missing (chroot may not have it)
++      test -c /dev/nvram || mknod /dev/nvram c 10 144 2>/dev/null || true
++      # Create device.map so GRUB can find the loop device in the chroot
++      mkdir -p /boot/grub
++      echo "(hd0) ${LOOP_DEV}" > /boot/grub/device.map
++      # Try partition device first (Fedora GRUB needs this), fall back to whole disk
++      touch /dev/nvram 2>/dev/null || true
++      if ! grub-install --target=powerpc-ieee1275 "${LOOP_DEV}p1"; then
++        grub-install --target=powerpc-ieee1275 --no-nvram "${LOOP_DEV}p1"
++      fi
++    fi
++    grub-mkconfig -o /boot/grub/grub.cfg
++    sed -i "s#root=[^ ]*#root=${DISTROBUILDER_ROOT_UUID}#g" /boot/grub/grub.cfg
++  architectures:
++  - ppc64el
++  types:
++  - vm
++
++- trigger: post-files
++  action: |-
++    #!/bin/sh
++    set -eux
++
++    # Install zipl bootloader for s390x
++    LOOP_DEV="${DISTROBUILDER_LOOP_DEVICE}"
++    KERNEL=$(ls /boot/vmlinuz-* | head -n1)
++    INITRD=$(ls /boot/initrd.img-* | head -n1)
++
++    # Create zipl configuration
++    cat > /etc/zipl.conf << EOF
++    [defaultboot]
++    default = Ubuntu
++    target = /boot
++    targetbase = ${LOOP_DEV}
++    targettype = scsi
++    targetblocksize = 512
++    targetoffset = 2048
++
++    [Ubuntu]
++    image = ${KERNEL}
++    ramdisk = ${INITRD}
++    parameters = "root=${DISTROBUILDER_ROOT_UUID} ro console=ttysclp0"
++    EOF
++
++    # Install zipl
++    zipl -V -c /etc/zipl.conf
++  architectures:
++  - s390x
+   types:
+   - vm

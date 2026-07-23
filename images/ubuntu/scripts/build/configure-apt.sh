@@ -45,10 +45,13 @@ EOF
 apt-get purge unattended-upgrades
 
 echo 'APT sources'
-if ! is_ubuntu24; then
+# Support both deb822 format (ubuntu.sources) and classic format (sources.list)
+if [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then
+    cat /etc/apt/sources.list.d/ubuntu.sources
+elif [ -f /etc/apt/sources.list ]; then
     cat /etc/apt/sources.list
 else
-    cat /etc/apt/sources.list.d/ubuntu.sources
+    echo "Warning: No APT sources file found"
 fi
 
 update_dpkgs
@@ -56,6 +59,8 @@ update_dpkgs
 install_dpkgs jq
 
 if ! is_ubuntu24; then
+    # apt-fast's quick-install.sh requires wget; install it first as it may not be present in the base image
+    install_dpkgs wget
     # Install apt-fast using quick-install.sh
     # https://github.com/ilikenwf/apt-fast
     bash -c "$(curl -fsSL https://raw.githubusercontent.com/ilikenwf/apt-fast/master/quick-install.sh)"

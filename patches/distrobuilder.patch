@@ -1,0 +1,322 @@
+diff --git a/distrobuilder/main_incus.go b/distrobuilder/main_incus.go
+index adf8c34..82ded17 100644
+--- a/distrobuilder/main_incus.go
++++ b/distrobuilder/main_incus.go
+@@ -12,6 +12,7 @@ import (
+ 
+ 	client "github.com/lxc/incus/v7/client"
+ 	"github.com/lxc/incus/v7/shared/api"
++	incusArch "github.com/lxc/incus/v7/shared/osarch"
+ 	"github.com/sirupsen/logrus"
+ 	"github.com/spf13/cobra"
+ 	"golang.org/x/sys/unix"
+@@ -327,7 +328,12 @@ func (c *cmdIncus) run(cmd *cobra.Command, args []string, overlayDir string) err
+ 
+ 		imgFile := filepath.Join(c.global.flagCacheDir, imgFilename)
+ 
+-		vm, err = newVM(c.global.ctx, imgFile, vmDir, c.global.definition.Targets.Incus.VM.Filesystem, c.global.definition.Targets.Incus.VM.Size)
++		archID, err := incusArch.ArchitectureID(c.global.definition.Image.Architecture)
++		if err != nil {
++			return fmt.Errorf("Failed to get architecture ID: %w", err)
++		}
++
++		vm, err = newVM(c.global.ctx, imgFile, vmDir, c.global.definition.Targets.Incus.VM.Filesystem, c.global.definition.Targets.Incus.VM.Size, archID)
+ 		if err != nil {
+ 			return fmt.Errorf("Failed to instantiate VM: %w", err)
+ 		}
+@@ -382,10 +388,13 @@ func (c *cmdIncus) run(cmd *cobra.Command, args []string, overlayDir string) err
+ 			return fmt.Errorf("Failed to find rootfs device UUID: %w", err)
+ 		}
+ 
++		loopEnv := fmt.Sprintf("%s=%s", shared.EnvLoopDevice, vm.getLoopDev())
++
+ 		c.global.ctx = context.WithValue(c.global.ctx, shared.ContextKeyEnviron,
+ 			[]string{
+ 				fmt.Sprintf("%s=%s", shared.EnvRootUUID, rootUUID),
+ 				fmt.Sprintf("%s=%s", shared.EnvRootPARTUUID, partUUID),
++				loopEnv,
+ 			})
+ 		// We cannot use Incus' rsync package as that uses the --delete flag which
+ 		// causes an issue due to the boot/efi directory being present.
+@@ -407,19 +416,35 @@ func (c *cmdIncus) run(cmd *cobra.Command, args []string, overlayDir string) err
+ 				Target: filepath.Join("/", "dev", filepath.Base(vm.getRootfsDevFile())),
+ 				Flags:  unix.MS_BIND,
+ 			},
+-			{
++		}
++
++		// Bind-mount the boot partition device into the chroot (if present).
++		if vm.getUEFIDevFile() != "" {
++			mounts = append(mounts, shared.ChrootMount{
+ 				Source: vm.getUEFIDevFile(),
+ 				Target: filepath.Join("/", "dev", filepath.Base(vm.getUEFIDevFile())),
+ 				Flags:  unix.MS_BIND,
+-			},
+-			{
++			})
++		}
++
++		if vm.architecture == incusArch.ARCH_64BIT_S390_BIG_ENDIAN && vm.getUEFIDevFile() != "" {
++			mounts = append(mounts, shared.ChrootMount{
++				Source: vm.getUEFIDevFile(),
++				Target: "/boot",
++				FSType: "ext4",
++				Flags:  0,
++				Data:   "",
++				IsDir:  true,
++			})
++		} else if vm.architecture != incusArch.ARCH_64BIT_POWERPC_LITTLE_ENDIAN && vm.getUEFIDevFile() != "" {
++			mounts = append(mounts, shared.ChrootMount{
+ 				Source: vm.getUEFIDevFile(),
+ 				Target: "/boot/efi",
+ 				FSType: "vfat",
+ 				Flags:  0,
+ 				Data:   "",
+ 				IsDir:  true,
+-			},
++			})
+ 		}
+ 	}
+ 
+@@ -573,7 +598,7 @@ func (c *cmdIncus) run(cmd *cobra.Command, args []string, overlayDir string) err
+ }
+ 
+ func (c *cmdIncus) checkVMDependencies() error {
+-	dependencies := []string{"btrfs", "mkfs.ext4", "mkfs.vfat", "qemu-img", "rsync", "sgdisk"}
++	dependencies := []string{"btrfs", "mkfs.ext4", "qemu-img", "rsync", "sgdisk"}
+ 
+ 	for _, dep := range dependencies {
+ 		_, err := exec.LookPath(dep)
+diff --git a/distrobuilder/vm.go b/distrobuilder/vm.go
+index 77a4fc0..cef283b 100644
+--- a/distrobuilder/vm.go
++++ b/distrobuilder/vm.go
+@@ -10,6 +10,7 @@ import (
+ 	"strconv"
+ 	"strings"
+ 
++	incusArch "github.com/lxc/incus/v7/shared/osarch"
+ 	incus "github.com/lxc/incus/v7/shared/util"
+ 	"golang.org/x/sys/unix"
+ 
+@@ -17,16 +18,17 @@ import (
+ )
+ 
+ type vm struct {
+-	imageFile  string
+-	loopDevice string
+-	rootFS     string
+-	rootfsDir  string
+-	bootfsDir  string
+-	size       uint64
+-	ctx        context.Context
++	imageFile    string
++	loopDevice   string
++	rootFS       string
++	rootfsDir    string
++	bootfsDir    string
++	size         uint64
++	ctx          context.Context
++	architecture int
+ }
+ 
+-func newVM(ctx context.Context, imageFile, rootfsDir, fs string, size uint64) (*vm, error) {
++func newVM(ctx context.Context, imageFile, rootfsDir, fs string, size uint64, architecture int) (*vm, error) {
+ 	if fs == "" {
+ 		fs = "ext4"
+ 	}
+@@ -39,7 +41,7 @@ func newVM(ctx context.Context, imageFile, rootfsDir, fs string, size uint64) (*
+ 		size = 4294967296
+ 	}
+ 
+-	return &vm{ctx: ctx, imageFile: imageFile, rootfsDir: rootfsDir, rootFS: fs, size: size}, nil
++	return &vm{ctx: ctx, imageFile: imageFile, rootfsDir: rootfsDir, rootFS: fs, size: size, architecture: architecture}, nil
+ }
+ 
+ func (v *vm) getLoopDev() string {
+@@ -121,10 +123,28 @@ func (v *vm) createEmptyDiskImage() error {
+ 
+ func (v *vm) createPartitions(args ...[]string) error {
+ 	if len(args) == 0 {
+-		args = [][]string{
+-			{"--zap-all"},
+-			{"--new=1::+100M", "-t 1:EF00"},
+-			{"--new=2::", "-t 2:8300"},
++		switch v.architecture {
++		case incusArch.ARCH_64BIT_POWERPC_LITTLE_ENDIAN:
++			// PReP boot partition (8 MiB, no filesystem) + Linux root
++			args = [][]string{
++				{"--zap-all"},
++				{"--new=1::+8M", "-t 1:4100"},
++				{"--new=2::", "-t 2:8300"},
++			}
++		case incusArch.ARCH_64BIT_S390_BIG_ENDIAN:
++			// Boot partition (500 MiB, ext4) + Linux root
++			args = [][]string{
++				{"--zap-all"},
++				{"--new=1::+500M", "-t 1:8300"},
++				{"--new=2::", "-t 2:8300"},
++			}
++		default:
++			// EFI System Partition (100 MiB, vfat) + Linux root
++			args = [][]string{
++				{"--zap-all"},
++				{"--new=1::+100M", "-t 1:EF00"},
++				{"--new=2::", "-t 2:8300"},
++			}
+ 		}
+ 	}
+ 
+@@ -210,7 +230,7 @@ func (v *vm) mountImage() error {
+ 	if err != nil {
+ 		return err
+ 	} else if num != 3 {
+-		return fmt.Errorf("Failed to list block devices")
++		return fmt.Errorf("Expected 3 block devices (loop + 2 partitions), got %d", num)
+ 	}
+ 
+ 	if !incus.PathExists(v.getUEFIDevFile()) {
+@@ -315,6 +335,16 @@ func (v *vm) createUEFIFS() error {
+ 		return errors.New("Disk image not mounted")
+ 	}
+ 
++	// ppc64le uses a raw PReP partition instead of a vfat ESP
++	if v.architecture == incusArch.ARCH_64BIT_POWERPC_LITTLE_ENDIAN {
++		return nil
++	}
++
++	// s390x uses an ext4 boot partition instead of a vfat ESP
++	if v.architecture == incusArch.ARCH_64BIT_S390_BIG_ENDIAN {
++		return shared.RunCommand(v.ctx, nil, nil, "mkfs.ext4", "-F", "-L", "boot", v.getUEFIDevFile())
++	}
++
+ 	return shared.RunCommand(v.ctx, nil, nil, "mkfs.vfat", "-F", "32", "-n", "UEFI", v.getUEFIDevFile())
+ }
+ 
+@@ -338,6 +368,23 @@ func (v *vm) mountUEFIPartition() error {
+ 		return errors.New("Disk image not mounted")
+ 	}
+ 
++	// ppc64le uses a raw PReP partition, no vfat filesystem to mount
++	if v.architecture == incusArch.ARCH_64BIT_POWERPC_LITTLE_ENDIAN {
++		return nil
++	}
++
++	// s390x uses an ext4 boot partition mounted at /boot
++	if v.architecture == incusArch.ARCH_64BIT_S390_BIG_ENDIAN {
++		v.bootfsDir = filepath.Join(v.rootfsDir, "boot")
++
++		err := os.MkdirAll(v.bootfsDir, 0o755)
++		if err != nil {
++			return fmt.Errorf("Failed to create directory %q: %w", v.bootfsDir, err)
++		}
++
++		return shared.RunCommand(v.ctx, nil, nil, "mount", "-t", "ext4", v.getUEFIDevFile(), v.bootfsDir, "-o", "discard")
++	}
++
+ 	v.bootfsDir = filepath.Join(v.rootfsDir, "boot", "efi")
+ 
+ 	err := os.MkdirAll(v.bootfsDir, 0o755)
+diff --git a/distrobuilder/vm_test.go b/distrobuilder/vm_test.go
+index b40129d..542cbd4 100644
+--- a/distrobuilder/vm_test.go
++++ b/distrobuilder/vm_test.go
+@@ -77,6 +77,8 @@ func TestLsblkOutput(t *testing.T) {
+ 	}{
+ 		{"DiskEmpty", [][]string{{"--zap-all"}}, 1},
+ 		{"UEFI", nil, 3},
++		{"PReP", [][]string{{"--zap-all"}, {"--new=1::+8M", "-t 1:4100"}, {"--new=2::", "-t 2:8300"}}, 3},
++		{"S390x", [][]string{{"--zap-all"}, {"--new=1::+50M", "-t 1:8300"}, {"--new=2::", "-t 2:8300"}}, 3},
+ 		{"MBR", [][]string{{"--new=1::"}, {"--gpttombr"}}, 2},
+ 	}
+ 
+diff --git a/generators/common.go b/generators/common.go
+index 66a7cc4..7dc52e1 100644
+--- a/generators/common.go
++++ b/generators/common.go
+@@ -11,6 +11,7 @@ type common struct {
+ 	cacheDir  string
+ 	sourceDir string
+ 	defFile   shared.DefinitionFile
++	def       shared.Definition
+ }
+ 
+ func (g *common) init(logger *logrus.Logger, cacheDir string, sourceDir string, defFile shared.DefinitionFile, def shared.Definition) {
+@@ -18,6 +19,7 @@ func (g *common) init(logger *logrus.Logger, cacheDir string, sourceDir string,
+ 	g.cacheDir = cacheDir
+ 	g.sourceDir = sourceDir
+ 	g.defFile = defFile
++	g.def = def
+ 
+ 	render := func(val string) string {
+ 		if !defFile.Pongo {
+diff --git a/generators/fstab.go b/generators/fstab.go
+index bb77e4b..1476807 100644
+--- a/generators/fstab.go
++++ b/generators/fstab.go
+@@ -6,6 +6,8 @@ import (
+ 	"os"
+ 	"path/filepath"
+ 
++	incusArch "github.com/lxc/incus/v7/shared/osarch"
++
+ 	"github.com/lxc/distrobuilder/v3/image"
+ 	"github.com/lxc/distrobuilder/v3/shared"
+ )
+@@ -28,10 +30,6 @@ func (g *fstab) RunIncus(img *image.IncusImage, target shared.DefinitionTargetIn
+ 
+ 	defer f.Close()
+ 
+-	content := `LABEL=rootfs  /         %s  %s  0 0
+-LABEL=UEFI    /boot/efi vfat  defaults  0 0
+-`
+-
+ 	fs := target.VM.Filesystem
+ 
+ 	if fs == "" {
+@@ -44,7 +42,23 @@ LABEL=UEFI    /boot/efi vfat  defaults  0 0
+ 		options = fmt.Sprintf("%s,subvol=@", options)
+ 	}
+ 
+-	_, err = fmt.Fprintf(f, content, fs, options)
++	// Determine the boot partition fstab entry based on architecture.
++	// s390x uses an ext4 /boot partition; ppc64le uses a raw PReP partition
++	// (no filesystem, no fstab entry); all others use a vfat /boot/efi ESP.
++	archID, _ := incusArch.ArchitectureID(g.def.Image.Architecture)
++
++	var bootEntry string
++
++	switch archID {
++	case incusArch.ARCH_64BIT_S390_BIG_ENDIAN:
++		bootEntry = "LABEL=boot    /boot     ext4  defaults  0 2\n"
++	case incusArch.ARCH_64BIT_POWERPC_LITTLE_ENDIAN:
++		// PReP partition has no filesystem; no fstab entry needed.
++	default:
++		bootEntry = "LABEL=UEFI    /boot/efi vfat  defaults  0 0\n"
++	}
++
++	_, err = fmt.Fprintf(f, "LABEL=rootfs  /         %s  %s  0 0\n%s", fs, options, bootEntry)
+ 	if err != nil {
+ 		return fmt.Errorf("Failed to write string to file %q: %w", filepath.Join(g.sourceDir, "etc/fstab"), err)
+ 	}
+diff --git a/shared/chroot.go b/shared/chroot.go
+index 619fa3f..18a865b 100644
+--- a/shared/chroot.go
++++ b/shared/chroot.go
+@@ -433,3 +433,4 @@ func populateDev() error {
+ 
+ 	return nil
+ }
++
+diff --git a/shared/util.go b/shared/util.go
+index 5526734..82ab121 100644
+--- a/shared/util.go
++++ b/shared/util.go
+@@ -25,6 +25,7 @@ const (
+ 	ContextKeyStderr  = ContextKey("stderr")
+ 	EnvRootUUID       = "DISTROBUILDER_ROOT_UUID"
+ 	EnvRootPARTUUID   = "DISTROBUILDER_ROOT_PARTUUID"
++	EnvLoopDevice     = "DISTROBUILDER_LOOP_DEVICE"
+ )
+ 
+ // EnvVariable represents a environment variable.
