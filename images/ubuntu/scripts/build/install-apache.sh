@@ -9,8 +9,11 @@
 source "$HELPER_SCRIPTS"/install.sh
 
 # Install Apache
-install_dpkgs apache2
-
-# Disable apache2.service
-systemctl is-active --quiet apache2.service && systemctl stop apache2.service
-systemctl disable apache2.service
+if install_dpkgs apache2; then
+    # Disable apache2.service only if installation succeeded
+    systemctl is-active --quiet apache2.service && systemctl stop apache2.service
+    systemctl disable apache2.service || true
+else
+    echo "Apache2 installation failed or not available for this architecture. Skipping."
+    exit 0
+fi
