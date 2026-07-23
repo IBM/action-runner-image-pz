@@ -212,7 +212,7 @@ index cef4fcf8..5daa29c6 100644
      <NoWarn>NU1701;NU1603;SYSLIB0050;SYSLIB0051</NoWarn>
      <Version>$(Version)</Version>
 diff --git a/src/Sdk/Sdk.csproj b/src/Sdk/Sdk.csproj
-index 8479d48e..89e624ae 100644
+index c7b410ac..f613b7e7 100644
 --- a/src/Sdk/Sdk.csproj
 +++ b/src/Sdk/Sdk.csproj
 @@ -4,7 +4,10 @@
@@ -372,4 +372,4 @@ index 056a312e..3f9a3679 100644
          <Exec Command="%22$(DesktopMSBuild)%22 Runner.Service/Windows/RunnerService.csproj /p:Configuration=$(BUILDCONFIG) /p:PackageRuntime=$(PackageRuntime) /p:OutputPath=%22$(MSBuildProjectDirectory)/../_layout/bin%22" ConsoleToMSBuild="true" Condition="'$(PackageRuntime)' == 'win-x64' Or '$(PackageRuntime)' == 'win-x86' Or '$(PackageRuntime)' == 'win-arm64'" />
      </Target>
  
-# From upstream commit: f898ef14a51cf42409469bc248492c325ad8a874
+# From upstream commit: 14de40d73a1ef1737446d8c89d4002f9d1ab5635
