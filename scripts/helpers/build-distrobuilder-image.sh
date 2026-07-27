@@ -271,6 +271,17 @@ build_distrobuilder_ubuntu_image() {
         log_error "Invalid Ubuntu version: $VERSION. Must be 22.04 or 24.04"
         return 1
     fi
+
+    # ppc64le VM builds: only Ubuntu 24.04 (noble) is supported.
+    # Ubuntu 22.04 (jammy) ships GRUB 2.06 which cannot complete installation
+    # inside the distrobuilder chroot environment; the resulting image is not
+    # bootable. 22.04 container images remain supported on all architectures.
+    if [[ "$BUILD_VM" == "true" && "$ARCH" == "ppc64le" && "$VERSION" == "22.04" ]]; then
+        log_error "Ubuntu 22.04 ppc64le VM images are not supported."
+        log_error "GRUB 2.06 (jammy) cannot install correctly in the distrobuilder"
+        log_error "chroot environment. Use Ubuntu 24.04 for ppc64le VM builds."
+        return 1
+    fi
     
     # Get release codename
     local CODENAME

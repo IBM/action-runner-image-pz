@@ -36,10 +36,10 @@ index 81be31e..1429e76 100644
    - packages:
      - shim-signed
      action: install
-@@ -648,7 +666,70 @@ actions:
+@@ -648,7 +666,55 @@ actions:
 
-     update-grub
-     sed -i "s#root=[^ ]*#root=${DISTROBUILDER_ROOT_UUID}#g" /boot/grub/grub.cfg
+    update-grub
+    sed -i "s#root=[^ ]*#root=${DISTROBUILDER_ROOT_UUID}#g" /boot/grub/grub.cfg
 +  architectures:
 +  - amd64
 +  - arm64
@@ -51,19 +51,23 @@ index 81be31e..1429e76 100644
 +    #!/bin/sh
 +    set -eux
 +
-+    # Install GRUB for PowerPC IEEE1275 (used by SLOF on pseries)
++    # Install GRUB for PowerPC IEEE1275 (pSeries/PowerNV).
++    # Only Ubuntu 24.04+ (noble) is supported on ppc64le VM builds.
++    # Ubuntu 22.04 (jammy) ships GRUB 2.06 which fails to install in
++    # the distrobuilder chroot environment; 22.04 ppc64le VM is not
++    # supported.
 +    LOOP_DEV="${DISTROBUILDER_LOOP_DEVICE}"
 +    if [ -n "${LOOP_DEV}" ]; then
-+      # Create device.map so GRUB can find the loop device in the chroot
 +      mkdir -p /boot/grub
 +      echo "(hd0) ${LOOP_DEV}" > /boot/grub/device.map
-+      # --skip-fs-probe: prevents grub-install from probing the host's /boot
-+      # filesystem (e.g. /dev/md127 RAID) through the chroot mount, which
-+      # causes 'unknown filesystem'. Safe because PReP (GPT type 4100) needs
-+      # no filesystem — GRUB writes its core image to raw partition space.
-+      # --no-nvram: ofpathname (from powerpc-utils) refuses to run on PowerNV
-+      # bare-metal hosts ("not supported on the PowerNV Host platform"), so
-+      # writing to NVRAM must be skipped. Harmless for image builds regardless.
++      # --skip-fs-probe: prevents grub-install from probing the host's
++      # /boot filesystem (e.g. /dev/md127 RAID) through the chroot mount,
++      # which causes 'unknown filesystem'. Safe because the PReP partition
++      # (GPT type 4100) needs no filesystem — GRUB writes its core image
++      # directly to raw partition space.
++      # --no-nvram: ofpathname (powerpc-utils) refuses to run on PowerNV
++      # bare-metal hosts ("not supported on the PowerNV Host platform"),
++      # so NVRAM update must be skipped. Harmless for image builds.
 +      grub-install --target=powerpc-ieee1275 --skip-fs-probe --no-nvram "${LOOP_DEV}p1"
 +    fi
 +    grub-mkconfig -o /boot/grub/grub.cfg
