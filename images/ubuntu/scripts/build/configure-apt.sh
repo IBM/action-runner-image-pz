@@ -45,10 +45,13 @@ EOF
 apt-get purge unattended-upgrades
 
 echo 'APT sources'
-if ! is_ubuntu24; then
+# Support both deb822 format (ubuntu.sources) and classic format (sources.list)
+if [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then
+    cat /etc/apt/sources.list.d/ubuntu.sources
+elif [ -f /etc/apt/sources.list ]; then
     cat /etc/apt/sources.list
 else
-    cat /etc/apt/sources.list.d/ubuntu.sources
+    echo "Warning: No APT sources file found"
 fi
 
 update_dpkgs

@@ -26,18 +26,28 @@ ENVPATH=${ENVPATH%"\""}
 replace_etc_environment_variable "PATH" "${ENVPATH}"
 echo "Updated /etc/environment: $(cat /etc/environment)"
 
-# Clean yarn and npm cache
-if yarn --version > /dev/null; then
+# Clean yarn and npm cache (only if installed)
+if command -v yarn > /dev/null 2>&1; then
+    echo "Cleaning yarn cache..."
     yarn cache clean
+else
+    echo "Yarn not installed, skipping cache clean"
 fi
 
-if npm --version; then
+if command -v npm > /dev/null 2>&1; then
+    echo "Cleaning npm cache..."
     npm cache clean --force
+else
+    echo "npm not installed, skipping cache clean"
 fi
 
 if is_ubuntu24; then
-# Prevent needrestart from restarting the provisioner service.
-# Currently only happens on Ubuntu 24.04, so make it conditional for the time being
-# as configuration is too different between Ubuntu versions.
-    sed -i '/^\s*};/i \    qr(^runner-provisioner) => 0,' /etc/needrestart/needrestart.conf
+    # Prevent needrestart from restarting the provisioner service.
+    # Currently only happens on Ubuntu 24.04, so make it conditional for the time being
+    # as configuration is too different between Ubuntu versions.
+    if [ -f /etc/needrestart/needrestart.conf ]; then
+        sed -i '/^\s*};/i \    qr(^runner-provisioner) => 0,' /etc/needrestart/needrestart.conf
+    else
+        echo "needrestart not installed, skipping configuration"
+    fi
 fi

@@ -115,9 +115,11 @@ set_etc_environment_variable "ANT_HOME" "/usr/share/ant"
 # Install Maven
 mavenVersion=$(get_toolset_value '.java.maven')
 mavenDownloadUrl="https://dlcdn.apache.org/maven/maven-3/${mavenVersion}/binaries/apache-maven-${mavenVersion}-bin.zip"
+mavenArchiveUrl="https://archive.apache.org/dist/maven/maven-3/${mavenVersion}/binaries/apache-maven-${mavenVersion}-bin.zip"
 
 if [ ! -d "/usr/share/apache-maven-${mavenVersion}" ]; then
-    maven_archive_path=$(download_with_retry "$mavenDownloadUrl")
+    # Try CDN mirror first, fall back to archive if it fails
+    maven_archive_path=$(download_with_retry "$mavenDownloadUrl") || maven_archive_path=$(download_with_retry "$mavenArchiveUrl")
     unzip -qq -d /usr/share "$maven_archive_path"
 fi
 

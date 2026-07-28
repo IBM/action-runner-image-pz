@@ -116,6 +116,7 @@
             "gcc",
             "make",
             "jq",
+            "software-properties-common",
             "tar",
             "unzip",
             "wget"

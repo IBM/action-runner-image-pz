@@ -49,12 +49,14 @@ SCRIPT_FILES=()
 # Define scripts for each setup type
 if [ "$SETUP" == "minimal" ]; then
     # List of scripts to be executed for a minimal setup
+    # Note: install-git.sh must come before install-runner-package.sh
+    # because configure-runner.sh (called by install-runner-package.sh for ppc64le/s390x) needs git
     SCRIPT_FILES=(
         "install-actions-cache.sh"
         "install-dotnetcore-sdk.sh"
-        "install-runner-package.sh"
         "install-git.sh"
         "install-git-lfs.sh"
+        "install-runner-package.sh"
         "install-github-cli.sh"
         "install-python.sh"
         "install-zstd.sh"
@@ -63,9 +65,13 @@ elif [ "$SETUP" == "complete" ]; then
     echo "Starting complete setup for $IMAGE_VERSION"
     if [[ "$IMAGE_VERSION" == "24.04" ]]; then
         # List of scripts to be executed
+        # Note: install-git.sh and install-git-lfs.sh must come before install-runner-package.sh
+        # because configure-runner.sh (called by install-runner-package.sh for ppc64le/s390x) needs git
         SCRIPT_FILES=(
             "install-actions-cache.sh"
             "install-dotnetcore-sdk.sh"
+            "install-git.sh"
+            "install-git-lfs.sh"
             "install-runner-package.sh"
             "install-azcopy.sh"
             "install-azure-cli.sh"
@@ -82,8 +88,6 @@ elif [ "$SETUP" == "complete" ]; then
             "install-gcc-compilers.sh"
             "install-firefox.sh"
             "install-gfortran.sh"
-            "install-git.sh"
-            "install-git-lfs.sh"
             "install-github-cli.sh"
             "install-google-chrome.sh"
             "install-google-cloud-cli.sh"
@@ -115,9 +119,13 @@ elif [ "$SETUP" == "complete" ]; then
         )
     elif [[ "$IMAGE_VERSION" == "22.04" ]]; then
         # List of scripts to be executed
+        # Note: install-git.sh and install-git-lfs.sh must come before install-runner-package.sh
+        # because configure-runner.sh (called by install-runner-package.sh for ppc64le/s390x) needs git
         SCRIPT_FILES=(
             "install-actions-cache.sh"
             "install-dotnetcore-sdk.sh"
+            "install-git.sh"
+            "install-git-lfs.sh"
             "install-runner-package.sh"
             "install-azcopy.sh"
             "install-azure-cli.sh"
@@ -135,8 +143,6 @@ elif [ "$SETUP" == "complete" ]; then
             "install-microsoft-edge.sh"
             "install-gcc-compilers.sh"
             "install-gfortran.sh"
-            "install-git.sh"
-            "install-git-lfs.sh"
             "install-github-cli.sh"
             "install-google-chrome.sh"
             "install-google-cloud-cli.sh"
