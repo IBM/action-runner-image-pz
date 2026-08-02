@@ -36,16 +36,18 @@ LVM_VG_NAME="${LVM_VG_NAME:-vg_incus}"
 LVM_LOOP_FILE="/var/lib/incus/disks/incus-lvm.img"
 
 # --------------------------------------------------
-# Early exit if Incus is already installed
+# Skip build/install if Incus is already installed and daemon is healthy
 # --------------------------------------------------
-if command -v incusd >/dev/null 2>&1; then
-    INSTALLED_VERSION=$(incusd --version 2>/dev/null | head -n1 || echo "unknown")
-    if echo "$INSTALLED_VERSION" | grep -q "${INCUS_VERSION#v}" && \
-       incus admin waitready --timeout=5 >/dev/null 2>&1; then
-        echo "[INFO] Incus ${INCUS_VERSION} already installed, skipping installation."
-        exit 0
-    fi
+SKIP_INCUS_BUILD=false
+if command -v incus >/dev/null 2>&1 && \
+   incus admin waitready --timeout=5 >/dev/null 2>&1 && \
+   ip link show incusbr0 >/dev/null 2>&1; then
+    INSTALLED_VERSION=$(/usr/local/bin/incus --version 2>/dev/null | head -n1 || echo "unknown")
+    echo "[INFO] Incus already installed (version: ${INSTALLED_VERSION}), daemon healthy, bridge up — skipping build."
+    SKIP_INCUS_BUILD=true
 fi
+
+if [ "$SKIP_INCUS_BUILD" = "false" ]; then
 
 echo "=================================================="
 echo " Installing Incus Environment"
@@ -381,6 +383,8 @@ else
         exit 1
     fi
 fi
+
+fi # end SKIP_INCUS_BUILD
 
 # --------------------------------------------------
 # Initialize Incus
