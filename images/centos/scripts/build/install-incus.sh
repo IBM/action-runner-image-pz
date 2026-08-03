@@ -2,8 +2,8 @@
 set -euo pipefail
 ################################################################################
 ##  File:  install-incus.sh
-##  Desc:  Install Incus from source for CentOS/AlmaLinux
-##  Note:  Builds Incus from source for consistency across architectures
+##  Desc:  Install Incus from source for CentOS/AlmaLinux (orchestrator)
+##  Note:  Sources per-step scripts for each installation phase.
 ##         Supports: ppc64le, s390x, x86_64
 ################################################################################
 
@@ -16,7 +16,6 @@ exec 2>&1
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../.." && pwd)"
-# Always use the script's own helpers directory for install.sh
 SCRIPT_HELPER_SCRIPTS="${SCRIPT_DIR}/../helpers"
 
 # shellcheck disable=SC1091
@@ -27,13 +26,30 @@ CONFIG_FILE="${REPO_ROOT}/scripts/assets/incus_init_host_${ARCH}.yml"
 
 # Version configuration (can be overridden via environment variables)
 RAFT_VERSION="${RAFT_VERSION:-v0.22.1}"
-INCUS_VERSION="${INCUS_VERSION:-v7.1.0}"
+INCUS_VERSION="${INCUS_VERSION:-v7.0.1}"
 
 # LVM configuration (can be overridden via environment variables)
 USE_LVM="${USE_LVM:-true}"
 LVM_LOOP_SIZE="${LVM_LOOP_SIZE:-200G}"
 LVM_VG_NAME="${LVM_VG_NAME:-vg_incus}"
 LVM_LOOP_FILE="/var/lib/incus/disks/incus-lvm.img"
+
+# Export so sourced step scripts can access them
+export ARCH RAFT_VERSION INCUS_VERSION USE_LVM LVM_LOOP_SIZE LVM_VG_NAME LVM_LOOP_FILE CONFIG_FILE
+
+# --------------------------------------------------
+# Skip build/install if Incus is already installed and daemon is healthy
+# --------------------------------------------------
+SKIP_INCUS_BUILD=false
+if command -v incus >/dev/null 2>&1 && \
+   incus admin waitready --timeout=5 >/dev/null 2>&1 && \
+   ip link show incusbr0 >/dev/null 2>&1; then
+    INSTALLED_VERSION=$(/usr/local/bin/incus --version 2>/dev/null | head -n1 || echo "unknown")
+    echo "[INFO] Incus already installed (version: ${INSTALLED_VERSION}), daemon healthy, bridge up — skipping build."
+    SKIP_INCUS_BUILD=true
+fi
+
+if [ "$SKIP_INCUS_BUILD" = "false" ]; then
 
 echo "=================================================="
 echo " Installing Incus Environment"
@@ -87,307 +103,85 @@ install_dnfpkgs \
     systemd-devel
 
 # --------------------------------------------------
-# Build raft
+# Step 1: Build and install raft
+# --------------------------------------------------
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/install-raft.sh"
+
+# --------------------------------------------------
+# Step 2: Build and install cowsql
+# --------------------------------------------------
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/install-cowsql.sh"
+
+# --------------------------------------------------
+# Step 3: Build and install Incus binary
+# --------------------------------------------------
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/install-incus-bin.sh"
+
+# --------------------------------------------------
+# Step 4: Setup LVM storage
+# --------------------------------------------------
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/setup-lvm.sh"
+
+# --------------------------------------------------
+# Step 5: Start Incus daemon
 # --------------------------------------------------
 
-echo "[INFO] Building raft..."
-
-# Check if raft is already installed
-if pkg-config --exists raft 2>/dev/null; then
-    INSTALLED_VERSION=$(pkg-config --modversion raft 2>/dev/null || echo "unknown")
-    echo "[INFO] raft already installed (version: $INSTALLED_VERSION), skipping build"
+# If incusd is already running and responding, skip the restart entirely.
+if /usr/local/bin/incus admin waitready --timeout=5 >/dev/null 2>&1; then
+    echo "[INFO] incusd is already running and healthy — skipping restart."
 else
-    echo "[INFO] raft not found, building from source..."
-    cd /tmp
+    echo "[INFO] Starting incusd..."
 
-    if [ ! -d raft ]; then
-        git clone --branch "${RAFT_VERSION}" https://github.com/cowsql/raft.git
+    if pgrep -x incusd >/dev/null 2>&1; then
+        echo "[INFO] Stopping unresponsive incusd..."
+        pkill -9 incusd 2>/dev/null || true
+        sleep 1
     fi
+    rm -f /run/incus/unix.socket
+    rm -f /var/run/incus/unix.socket
+    rm -f /var/lib/incus/unix.socket
 
-    cd raft
-    autoreconf -i
-    ./configure
-    make -j"$(nproc)"
-    make install
-    echo "[INFO] raft installed successfully"
-fi
+    INCUSD_LOG=$(mktemp /tmp/incusd.XXXX.log)
+    export INCUSD_LOG
+    echo "[INFO] incusd log: $INCUSD_LOG"
 
-# Export PKG_CONFIG_PATH for subsequent builds
-export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
-export LD_LIBRARY_PATH="/usr/local/lib:${LD_LIBRARY_PATH:-}"
+    nohup /usr/local/bin/incusd --group incus-admin >"$INCUSD_LOG" 2>&1 &
 
-ldconfig
-
-# Verify raft installation
-echo "Verifying raft installation..."
-pkg-config --modversion raft
-
-# --------------------------------------------------
-# Build cowsql
-# --------------------------------------------------
-
-echo "[INFO] Building cowsql..."
-
-# Check if cowsql is already installed
-if pkg-config --exists cowsql 2>/dev/null; then
-    INSTALLED_VERSION=$(pkg-config --modversion cowsql 2>/dev/null || echo "unknown")
-    echo "[INFO] cowsql already installed (version: $INSTALLED_VERSION), skipping build"
-else
-    echo "[INFO] cowsql not found, building from source..."
-    cd /tmp
-
-    if [ ! -d cowsql ]; then
-        git clone https://github.com/cowsql/cowsql.git
-    fi
-
-    cd cowsql
-    autoreconf -i
-    ./configure
-    make -j"$(nproc)"
-    make install
-    echo "[INFO] cowsql installed successfully"
-fi
-
-# --------------------------------------------------
-# Configure Shared Libraries
-# --------------------------------------------------
-
-echo "[INFO] Configuring shared libraries..."
-echo "/usr/local/lib" > /etc/ld.so.conf.d/incus.conf
-ldconfig
-ldconfig -p | grep cowsql
-
-# --------------------------------------------------
-# Build Incus
-# --------------------------------------------------
-
-echo "[INFO] Building Incus..."
-
-# Check if Incus is already installed
-if command -v incusd >/dev/null 2>&1; then
-    INSTALLED_VERSION=$(incusd --version 2>/dev/null | head -n1 || echo "unknown")
-    echo "[INFO] Incus already installed (version: $INSTALLED_VERSION)"
-    
-    # Check if version matches
-    if echo "$INSTALLED_VERSION" | grep -q "${INCUS_VERSION#v}"; then
-        echo "[INFO] Incus version matches ${INCUS_VERSION}, skipping build"
-    else
-        echo "[INFO] Incus version mismatch, rebuilding..."
-        BUILD_INCUS=true
-    fi
-else
-    echo "[INFO] Incus not found, building from source..."
-    BUILD_INCUS=true
-fi
-
-if [ "${BUILD_INCUS:-false}" = "true" ]; then
-    cd /tmp
-
-    if [ ! -d incus ]; then
-        git clone --branch "${INCUS_VERSION}" https://github.com/lxc/incus.git
-    fi
-
-    cd incus
-    make
-
-    GOBIN="$(go env GOPATH)/bin"
-
-    test -f "${GOBIN}/incusd"
-
-    install -m 755 "${GOBIN}/incus" /usr/local/bin/
-    install -m 755 "${GOBIN}/incusd" /usr/local/bin/
-    install -m 755 "${GOBIN}/incus-agent" /usr/local/bin/
-    install -m 755 "${GOBIN}/incus-migrate" /usr/local/bin/
-    
-    echo "[INFO] Incus installed successfully"
-fi
-
-/usr/local/bin/incusd --version
-
-# --------------------------------------------------
-# Configure User Namespace Mapping
-# --------------------------------------------------
-
-echo "[INFO] Configuring idmap..."
-grep -q "^root:100000:65536" /etc/subuid || \
-    echo "root:100000:65536" >> /etc/subuid
-
-grep -q "^root:100000:65536" /etc/subgid || \
-    echo "root:100000:65536" >> /etc/subgid
-
-chmod u+s /usr/bin/newuidmap
-chmod u+s /usr/bin/newgidmap
-
-# --------------------------------------------------
-# Setup LVM Storage (if enabled)
-# --------------------------------------------------
-
-setup_lvm_storage() {
-    if [ "$USE_LVM" != "true" ]; then
-        echo "[INFO] LVM storage disabled, using DIR storage"
-        return 0
-    fi
-    
-    echo "[INFO] Setting up LVM storage for Incus..."
-    
-    # Check if vg_incus already exists
-    if vgs "$LVM_VG_NAME" &>/dev/null; then
-        echo "[INFO] Volume group $LVM_VG_NAME already exists, skipping creation"
-        return 0
-    fi
-    
-    # Create directory for loop device
-    mkdir -p "$(dirname "$LVM_LOOP_FILE")"
-    
-    # Create loop device file if it doesn't exist
-    if [ ! -f "$LVM_LOOP_FILE" ]; then
-        echo "[INFO] Creating loop device file: $LVM_LOOP_FILE ($LVM_LOOP_SIZE)"
-        truncate -s "$LVM_LOOP_SIZE" "$LVM_LOOP_FILE"
-    else
-        echo "[INFO] Loop device file already exists: $LVM_LOOP_FILE"
-    fi
-    
-    # Setup loop device
-    echo "[INFO] Setting up loop device..."
-    LOOP_DEV=$(losetup -f --show "$LVM_LOOP_FILE")
-    echo "[INFO] Loop device created: $LOOP_DEV"
-    
-    # Create physical volume
-    echo "[INFO] Creating physical volume on $LOOP_DEV..."
-    pvcreate "$LOOP_DEV"
-    
-    # Create volume group
-    echo "[INFO] Creating volume group: $LVM_VG_NAME..."
-    vgcreate "$LVM_VG_NAME" "$LOOP_DEV"
-    
-    # Verify creation
-    echo "[INFO] Verifying LVM setup..."
-    pvs | grep "$LOOP_DEV"
-    vgs | grep "$LVM_VG_NAME"
-    
-    # Make loop device persistent across reboots
-    echo "[INFO] Making loop device persistent..."
-    cat > /etc/systemd/system/incus-lvm-loop.service << EOF
-[Unit]
-Description=Setup Incus LVM loop device
-DefaultDependencies=no
-Before=lvm2-activation-early.service
-After=local-fs.target
-
-[Service]
-Type=oneshot
-ExecStart=/sbin/losetup -f $LVM_LOOP_FILE
-RemainAfterExit=yes
-
-[Install]
-WantedBy=local-fs.target
-EOF
-    
-    systemctl daemon-reload
-    systemctl enable incus-lvm-loop.service
-    
-    echo "[INFO] LVM storage setup complete"
-    echo "[INFO] Volume Group: $LVM_VG_NAME"
-    echo "[INFO] Loop Device: $LOOP_DEV"
-    echo "[INFO] Loop File: $LVM_LOOP_FILE"
-}
-
-# Setup LVM storage before starting Incus
-setup_lvm_storage
-
-# --------------------------------------------------
-# Start Incus
-# --------------------------------------------------
-
-echo "[INFO] Starting incusd..."
-pkill incusd 2>/dev/null || true
-
-nohup /usr/local/bin/incusd >/tmp/incusd.log 2>&1 &
-
-sleep 10
-
-pgrep incusd
-/usr/local/bin/incus admin waitready
-
-# --------------------------------------------------
-# Initialize Incus
-# --------------------------------------------------
-
-echo "[INFO] Initializing Incus..."
-
-# Check if storage pool exists
-STORAGE_EXISTS=$(/usr/local/bin/incus storage list --format csv 2>/dev/null | grep -q "^default," && echo "true" || echo "false")
-
-# Check if network exists AND is properly configured (managed=YES)
-NETWORK_EXISTS=$(/usr/local/bin/incus network list --format csv 2>/dev/null | grep "^incusbr0," | grep -q ",YES," && echo "true" || echo "false")
-
-if [ "$STORAGE_EXISTS" = "true" ] && [ "$NETWORK_EXISTS" = "true" ]; then
-    echo "[INFO] Incus already initialized (storage and network exist)"
-    echo "[INFO] Existing storage pools:"
-    /usr/local/bin/incus storage list
-    echo "[INFO] Existing networks:"
-    /usr/local/bin/incus network list
-else
-    # Hybrid approach: Try preseed first if nothing exists, fallback to manual if partial state
-    if [ "$STORAGE_EXISTS" = "false" ] && [ "$NETWORK_EXISTS" = "false" ]; then
-        echo "[INFO] Fresh installation detected. Attempting preseed initialization..."
-        if [ ! -f "$CONFIG_FILE" ]; then
-            echo "[ERROR] Config file not found: $CONFIG_FILE"
+    echo "[INFO] Waiting for incusd to become ready..."
+    for _ in {1..30}; do
+        if /usr/local/bin/incus admin waitready --timeout=1 >/dev/null 2>&1; then
+            break
+        fi
+        if ! pgrep -x incusd >/dev/null 2>&1; then
+            echo "[ERROR] incusd exited unexpectedly"
+            cat "$INCUSD_LOG"
             exit 1
         fi
-        
-        # Try preseed initialization
-        if /usr/local/bin/incus admin init --preseed < "$CONFIG_FILE" 2>/dev/null; then
-            echo "[INFO] Preseed initialization successful"
-        else
-            echo "[WARN] Preseed initialization failed. Falling back to manual configuration..."
-            PRESEED_FAILED=true
-        fi
-    else
-        echo "[INFO] Partial configuration detected (storage: $STORAGE_EXISTS, network: $NETWORK_EXISTS)"
-        echo "[INFO] Using manual configuration for idempotent setup..."
-        PRESEED_FAILED=true
+        sleep 1
+    done
+
+    echo "[INFO] Verifying daemon..."
+    if ! /usr/local/bin/incus admin waitready --timeout=5 >/dev/null 2>&1; then
+        echo "[ERROR] incusd is not responding"
+        cat "$INCUSD_LOG"
+        exit 1
     fi
-    
-    # Manual configuration (runs if preseed failed or partial state exists)
-    if [ "${PRESEED_FAILED:-false}" = "true" ]; then
-        # Create network if it doesn't exist
-        if [ "$NETWORK_EXISTS" = "false" ]; then
-            echo "[INFO] Creating network incusbr0..."
-            /usr/local/bin/incus network create incusbr0 \
-                ipv4.address=auto \
-                ipv4.nat=true \
-                ipv6.address=auto \
-                ipv6.nat=true \
-                --description="Default Incus bridge for $ARCH"
-        fi
-        
-        # Create storage pool if it doesn't exist
-        if [ "$STORAGE_EXISTS" = "false" ]; then
-            echo "[INFO] Creating storage pool default..."
-            /usr/local/bin/incus storage create default lvm \
-                source=vg_incus \
-                lvm.thinpool_name=IncusThinPool \
-                size=100GiB \
-                volume.size=60GiB \
-                --description="Incus LVM storage pool for $ARCH"
-        fi
-    fi
-    
-    # Always configure profile (works for both preseed and manual)
-    echo "[INFO] Configuring default profile..."
-    /usr/local/bin/incus profile device set default root pool=default 2>/dev/null || \
-        /usr/local/bin/incus profile device add default root disk path=/ pool=default
-    
-    /usr/local/bin/incus profile device set default eth0 network=incusbr0 2>/dev/null || \
-        /usr/local/bin/incus profile device add default eth0 nic name=eth0 network=incusbr0
-    
-    /usr/local/bin/incus profile set default security.nesting=true
-    /usr/local/bin/incus profile set default security.syscalls.deny_default=false
 fi
 
+fi # end SKIP_INCUS_BUILD
+
 # --------------------------------------------------
-# Configure Firewalld
+# Step 6: Initialize network, storage, and profile
+# --------------------------------------------------
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/setup-incus-network.sh"
+
+# --------------------------------------------------
+# Configure Firewalld (CentOS-specific)
 # --------------------------------------------------
 
 echo "[INFO] Configuring firewall..."
@@ -396,7 +190,7 @@ if command -v firewall-cmd >/dev/null 2>&1; then
         --zone=trusted \
         --add-interface=incusbr0 \
         --permanent || true
-    
+
     firewall-cmd --reload || true
 fi
 
