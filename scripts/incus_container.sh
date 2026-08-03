@@ -18,8 +18,8 @@ ensure_incus() {
     echo "Ensuring Incus is installed and configured..."
     
     # Check if we should skip installation
-    if [[ "${SKIP_SNAP_LXD}" == "true" ]]; then
-        echo "Skipping Incus installation (--skip-snap-lxd flag set)"
+    if [[ "${SKIP_SNAP_INCUS}" == "true" ]]; then
+        echo "Skipping Incus installation (--skip-snap-incus flag set)"
     else
         # Run install-incus.sh - it handles:
         # 1. Installation (if not installed)
