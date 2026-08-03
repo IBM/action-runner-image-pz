@@ -95,7 +95,7 @@ get_os_details() {
     
     local os_options=()
     case "$env" in
-        lxd_container|lxd_vm|incus_container)    os_options=("Ubuntu" "Back");;
+        lxd_container|lxd_vm|incus_container|incus_vm)    os_options=("Ubuntu" "Back");;
         *)      os_options=("Ubuntu" "CentOS/AlmaLinux" "Back");;
     esac
 
@@ -166,7 +166,7 @@ get_lxd_incus_args() {
 main() {
     while true; do
         # `|| true` prevents script exit if user presses Ctrl+D
-        main_choice=$(select_menu "Select the setup type: " "VM (host machine)" "LXD Container" "LXD VM" "Incus Container" "Docker" "Podman" "Exit") || true
+        main_choice=$(select_menu "Select the setup type: " "VM (host machine)" "LXD Container" "LXD VM" "Incus Container" "Incus VM" "Docker" "Podman" "Exit") || true
 
         local env=""
         local os_details=""
@@ -195,7 +195,7 @@ main() {
                 fi
                 ;;
 
-            "LXD Container"|"LXD VM"|"Incus Container"|"Docker"|"Podman")
+            "LXD Container"|"LXD VM"|"Incus Container"|"Incus VM"|"Docker"|"Podman")
                 env=$(echo "$main_choice" | tr '[:upper:]' '[:lower:]' | tr ' ' '_')
                 os_details=$(get_os_details "$env") || continue
                 ;;
@@ -233,7 +233,7 @@ main() {
         setup_type=$(get_setup_type "$env" "$os") || continue
         
         # Get extra args only if the environment is LXD or Incus
-        if [[ "$env" == "lxd_container" || "$env" == "lxd_vm" || "$env" == "incus_container" ]]; then
+        if [[ "$env" == "lxd_container" || "$env" == "lxd_vm" || "$env" == "incus_container" || "$env" == "incus_vm" ]]; then
             lxd_args=$(get_lxd_incus_args)
             read -r worker_arg arch_arg <<< "$lxd_args"
         fi
