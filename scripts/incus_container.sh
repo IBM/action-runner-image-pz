@@ -17,16 +17,21 @@ msg() {
 ensure_incus() {
     echo "Ensuring Incus is installed and configured..."
     
-    # Always run install-incus.sh - it handles:
-    # 1. Installation (if not installed)
-    # 2. Configuration (if not configured)
-    # 3. Base image import (at the end)
-    # The script has built-in idempotency checks
-    run_script "${HOST_INSTALLER_SCRIPT_FOLDER}/install-incus.sh" "HELPER_SCRIPTS" "INSTALLER_SCRIPT_FOLDER" "ARCH"
+    # Check if we should skip installation
+    if [[ "${SKIP_SNAP_LXD}" == "true" ]]; then
+        echo "Skipping Incus installation (--skip-snap-lxd flag set)"
+    else
+        # Run install-incus.sh - it handles:
+        # 1. Installation (if not installed)
+        # 2. Configuration (if not configured)
+        # 3. Base image import (at the end)
+        # The script has built-in idempotency checks
+        run_script "${HOST_INSTALLER_SCRIPT_FOLDER}/install-incus.sh" "HELPER_SCRIPTS" "INSTALLER_SCRIPT_FOLDER" "ARCH"
+    fi
     
     # Verify Incus is working
     if ! command -v incus &> /dev/null; then
-        echo "Error: Incus installation failed."
+        echo "Error: Incus is not installed."
         exit 1
     fi
     
@@ -330,18 +335,26 @@ run() {
   ensure_incus "$@"
   
   # After Incus is ready, check and import base images if needed
-  # This runs in the main script context, so interactive prompts work
   echo ""
-  echo "Checking for Ubuntu base images..."
-  
-  if incus image list --format=csv | grep -q "ubuntu-22.04\|ubuntu-24.04"; then
-    echo "Ubuntu base images found. Skipping import."
+  echo "Checking for Ubuntu ${IMAGE_VERSION} base container image..."
+
+  local BASE_ALIAS="ubuntu-${IMAGE_VERSION}"
+
+  if incus image info "${BASE_ALIAS}" &>/dev/null; then
+    echo "Base image '${BASE_ALIAS}' found. Skipping import."
   else
-    echo "No Ubuntu base images found. Starting import..."
-    # Source and call the import function
+    echo "Base image '${BASE_ALIAS}' not found. Starting import..."
     # shellcheck disable=SC1091
     source "${HELPERS_DIR}/import_ubuntu_base_images.sh"
-    import_ubuntu_base_images
+    if ! import_ubuntu_base_images "container" "${IMAGE_VERSION}"; then
+      echo "Error: Failed to import base image '${BASE_ALIAS}'. Aborting." >&2
+      return 1
+    fi
+    if ! incus image info "${BASE_ALIAS}" &>/dev/null; then
+      echo "Error: Base image '${BASE_ALIAS}' not found in Incus after import. Aborting." >&2
+      return 1
+    fi
+    echo "Base image '${BASE_ALIAS}' confirmed in Incus."
   fi
   
   # Now build the container image
@@ -353,6 +366,9 @@ prolog() {
   PATH=/usr/local/bin:${PATH}
   EXPORT="/opt/distro"
   HOST_OS_NAME=$(awk -F= '/^NAME/{print $2}' /etc/os-release | tr -d '"' | tr '[:upper:]' '[:lower:]' | awk '{print $1}')
+  # Map OS families - Fedora/RHEL/AlmaLinux/Rocky use CentOS scripts
+  [[ "$HOST_OS_NAME" =~ ^(fedora|rhel|almalinux|rocky|red)$ ]] && HOST_OS_NAME="centos"
+  [[ "$HOST_OS_NAME" =~ ^(debian)$ ]] && HOST_OS_NAME="ubuntu"
   # shellcheck disable=SC2034
   # shellcheck disable=SC2002
   HOST_OS_VERSION=$(cat /etc/os-release | grep -E 'VERSION_ID' | cut -d'=' -f2 | tr -d '"')
@@ -369,3 +385,5 @@ prolog
 run "$@"
 RC=$?
 exit ${RC}
+
+
