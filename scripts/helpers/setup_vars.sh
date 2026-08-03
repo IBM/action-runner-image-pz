@@ -15,6 +15,7 @@ usage() {
     echo "Flags:"
     echo "  --lxd-debug             Enable LXD debug mode (non-ephemeral containers)"
     echo "  --skip-snap-lxd         Skip snap and lxd installation and configuration"
+    echo "  --skip-snap-incus       Skip Incus installation and configuration"
     echo "  --skip-lxd-img-export   Skip LXD image export"
     echo "  --skip-lxd-img-primer   Skip LXD image primer"
     echo "  --skip-lxd-publish      Skip LXD publish"
@@ -26,6 +27,7 @@ usage() {
     echo "  --skip-incus-publish    Skip Incus publish"
     echo "  --skip-incus-snapshot   Skip Incus snapshot"
     echo "  --delete-incus-img      Delete the existing Incus image before building"
+    echo "  --skip-incus-base-img   Skip building/importing the Incus base OS image"
     echo "  -h, --help              Show this help"
     echo ""
     # Use return 1 instead of exit 1 because this script is sourced
@@ -35,6 +37,7 @@ usage() {
 # Initialize Defaults ---
 LXD_DEBUG=false
 SKIP_SNAP_LXD=false
+SKIP_SNAP_INCUS=false
 SKIP_LXD_IMG_EXPORT=false
 SKIP_LXD_IMG_PRIMER=false
 SKIP_LXD_PUBLISH=false
@@ -46,6 +49,7 @@ SKIP_INCUS_IMG_PRIMER=false
 SKIP_INCUS_PUBLISH=false
 SKIP_INCUS_SNAPSHOT=false
 DELETE_INCUS_IMG=false
+SKIP_INCUS_BASE_IMG=false
 ARCH=${ARCH:-$(uname -m)}
 PATCH_FILE="${PATCH_FILE:-runner-sdk8-${ARCH}.patch}"
 
@@ -65,6 +69,11 @@ while [[ $# -gt 0 ]]; do
         --skip-snap-lxd)
             # shellcheck disable=SC2034
             SKIP_SNAP_LXD=true
+            forward_args+=("$1")
+            ;;
+        --skip-snap-incus)
+            # shellcheck disable=SC2034
+            SKIP_SNAP_INCUS=true
             forward_args+=("$1")
             ;;
         --skip-lxd-img-export)
@@ -120,6 +129,11 @@ while [[ $# -gt 0 ]]; do
         --delete-incus-img)
             # shellcheck disable=SC2034
             DELETE_INCUS_IMG=true
+            forward_args+=("$1")
+            ;;
+        --skip-incus-base-img)
+            # shellcheck disable=SC2034
+            SKIP_INCUS_BASE_IMG=true
             forward_args+=("$1")
             ;;
         -h|--help)
