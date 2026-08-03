@@ -376,17 +376,26 @@ build_image() {
 
   msg "Checking current partitions..."
   incus exec "${BUILD_VM}" -- cat /proc/partitions
-  
-  msg "Expanding root partition (partition 2) on /dev/sda..."
-  incus exec "${BUILD_VM}" -- growpart /dev/sda 2 || true
-  
+
+  # Determine root partition number based on architecture:
+  # ppc64le: sda1=root, sda2=PReP(8MB raw)  → root is partition 1
+  # s390x:   sda1=boot(ext4), sda2=root      → root is partition 2
+  # x86_64/aarch64: sda1=EFI, sda2=root      → root is partition 2
+  local ROOT_PART=2
+  if [[ "${ARCH}" == "ppc64le" ]]; then
+    ROOT_PART=1
+  fi
+
+  msg "Expanding root partition (partition ${ROOT_PART}) on /dev/sda..."
+  incus exec "${BUILD_VM}" -- growpart /dev/sda "${ROOT_PART}" || true
+
   msg "Rebooting VM to apply partition changes..."
   incus restart "${BUILD_VM}"
-  
+
   wait_for_vm "${BUILD_VM}"
-  
+
   msg "Resizing root filesystem..."
-  incus exec "${BUILD_VM}" -- resize2fs /dev/sda2
+  incus exec "${BUILD_VM}" -- resize2fs "/dev/sda${ROOT_PART}"
   
   msg "Final Disk Usage:"
   incus exec "${BUILD_VM}" -- df -h
