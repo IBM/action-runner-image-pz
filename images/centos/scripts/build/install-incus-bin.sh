@@ -30,8 +30,17 @@ fi
 if [ "${BUILD_INCUS:-false}" = "true" ]; then
     cd /tmp || exit 1
 
+    # Remove stale/incomplete clone from a previous partial run
+    if [ -d incus ] && [ ! -f incus/Makefile ]; then
+        echo "[INFO] Removing incomplete incus directory from previous run..."
+        rm -rf incus
+    fi
+
     if [ ! -d incus ]; then
-        git clone --branch "${INCUS_VERSION}" https://github.com/lxc/incus.git
+        git clone --branch "${INCUS_VERSION}" https://github.com/lxc/incus.git || {
+            echo "[ERROR] Failed to clone incus repository (branch: ${INCUS_VERSION})"
+            exit 1
+        }
     fi
 
     cd incus || exit 1

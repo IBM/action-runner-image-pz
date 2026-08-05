@@ -41,10 +41,11 @@ export ARCH RAFT_VERSION INCUS_VERSION USE_LVM LVM_LOOP_SIZE LVM_VG_NAME LVM_LOO
 # Skip build/install if Incus is already installed and daemon is healthy
 # --------------------------------------------------
 SKIP_INCUS_BUILD=false
-if command -v incus >/dev/null 2>&1 && \
-   incus admin waitready --timeout=5 >/dev/null 2>&1 && \
+INCUS_BIN=$(command -v incus 2>/dev/null || echo "")
+if [ -n "$INCUS_BIN" ] && \
+   "$INCUS_BIN" admin waitready --timeout=30 >/dev/null 2>&1 && \
    ip link show incusbr0 >/dev/null 2>&1; then
-    INSTALLED_VERSION=$(/usr/local/bin/incus --version 2>/dev/null | head -n1 || echo "unknown")
+    INSTALLED_VERSION=$("$INCUS_BIN" --version 2>/dev/null | head -n1 || echo "unknown")
     echo "[INFO] Incus already installed (version: ${INSTALLED_VERSION}), daemon healthy, bridge up — skipping build."
     SKIP_INCUS_BUILD=true
 fi
