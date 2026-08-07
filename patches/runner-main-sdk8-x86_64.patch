@@ -86,7 +86,7 @@ index 14cc6bab..c8ed8b92 100755
  
      if ! [ -x "$(command -v ldconfig)" ]; then
 diff --git a/src/Runner.Common/Constants.cs b/src/Runner.Common/Constants.cs
-index 66b32c24..6e46eaf4 100644
+index 4e851cfd..7fcd2799 100644
 --- a/src/Runner.Common/Constants.cs
 +++ b/src/Runner.Common/Constants.cs
 @@ -59,7 +59,9 @@ namespace GitHub.Runner.Common
@@ -112,7 +112,7 @@ index 66b32c24..6e46eaf4 100644
              public static readonly Architecture PlatformArchitecture = Architecture.X64;
  #endif
 diff --git a/src/Runner.Common/Runner.Common.csproj b/src/Runner.Common/Runner.Common.csproj
-index 96b417c4..938b1d12 100644
+index 2dc7f7ec..b58e8aa1 100644
 --- a/src/Runner.Common/Runner.Common.csproj
 +++ b/src/Runner.Common/Runner.Common.csproj
 @@ -4,6 +4,10 @@
@@ -184,7 +184,7 @@ index a786cf1c..1a7cf064 100644
      <NoWarn>NU1701;NU1603;SYSLIB0050;SYSLIB0051</NoWarn>
      <Version>$(Version)</Version>
 diff --git a/src/Runner.Sdk/Runner.Sdk.csproj b/src/Runner.Sdk/Runner.Sdk.csproj
-index 6d6cf6e4..888a551a 100644
+index 54e95043..22acad7e 100644
 --- a/src/Runner.Sdk/Runner.Sdk.csproj
 +++ b/src/Runner.Sdk/Runner.Sdk.csproj
 @@ -5,6 +5,9 @@
@@ -372,4 +372,4 @@ index 056a312e..3f9a3679 100644
          <Exec Command="%22$(DesktopMSBuild)%22 Runner.Service/Windows/RunnerService.csproj /p:Configuration=$(BUILDCONFIG) /p:PackageRuntime=$(PackageRuntime) /p:OutputPath=%22$(MSBuildProjectDirectory)/../_layout/bin%22" ConsoleToMSBuild="true" Condition="'$(PackageRuntime)' == 'win-x64' Or '$(PackageRuntime)' == 'win-x86' Or '$(PackageRuntime)' == 'win-arm64'" />
      </Target>
  
-# From upstream commit: 172a1a05748291f8aa617ae2aaadcafd9db8a5e5
+# From upstream commit: 99e01149303b194e08778cdc9c03fa2703d03fb2
