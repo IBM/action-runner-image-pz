@@ -381,17 +381,33 @@ build_distrobuilder_ubuntu_image() {
     # Create images directory structure matching the patch's path prefix
     mkdir -p images
     mv ubuntu.yaml images/ubuntu.yaml
-    if ! patch -p1 < "$yaml_patch"; then
+    # 'git apply' is used instead of 'patch' because GNU patch misinterprets
+    # shell variable syntax (${VAR}) in patch hunks as malformed directives.
+    # git apply requires a git repository, so we initialise a throwaway one in
+    # WORKDIR if we are not already inside one (e.g. on CentOS build hosts where
+    # the workspace directory is outside any repo).
+    local _git_init_needed=false
+    if ! git -C "$WORKDIR" rev-parse --git-dir &>/dev/null; then
+        git -C "$WORKDIR" init -q
+        _git_init_needed=true
+    fi
+    if ! git -C "$WORKDIR" apply --whitespace=nowarn "$yaml_patch"; then
         log_error "Failed to apply lxc-ci patches — patch did not apply cleanly."
         log_error "The patch may be out of sync with the upstream ubuntu.yaml."
         mv images/ubuntu.yaml ubuntu.yaml 2>/dev/null || true
         rmdir images 2>/dev/null || true
+        if [[ "$_git_init_needed" == "true" ]]; then
+            rm -rf "$WORKDIR/.git"
+        fi
         cleanup_files
         return 1
     fi
     log_success "ubuntu.yaml patches applied successfully"
     mv images/ubuntu.yaml ubuntu.yaml
     rmdir images 2>/dev/null || true
+    if [[ "$_git_init_needed" == "true" ]]; then
+        rm -rf "$WORKDIR/.git"
+    fi
     
     # Build image with distrobuilder
     log_info "Building Ubuntu ${VERSION} ${IMAGE_TYPE} image (this will take several minutes)..."
