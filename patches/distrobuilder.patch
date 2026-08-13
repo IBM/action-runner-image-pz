@@ -226,6 +226,8 @@ index b40129d..542cbd4 100644
  		{"DiskEmpty", [][]string{{"--zap-all"}}, 1},
  		{"UEFI", nil, 3},
 +		{"PReP", [][]string{{"--zap-all"}, {"--new=1::+8M", "-t 1:4100"}, {"--new=2::", "-t 2:8300"}}, 3},
++		// S390x boot partition is 500 MiB in production, but tests use a 200 MiB
++		// disk image so the test intentionally uses 50 MiB to fit within that budget.
 +		{"S390x", [][]string{{"--zap-all"}, {"--new=1::+50M", "-t 1:8300"}, {"--new=2::", "-t 2:8300"}}, 3},
  		{"MBR", [][]string{{"--new=1::"}, {"--gpttombr"}}, 2},
  	}
@@ -282,7 +284,10 @@ index bb77e4b..1476807 100644
 +	// Determine the boot partition fstab entry based on architecture.
 +	// s390x uses an ext4 /boot partition; ppc64le uses a raw PReP partition
 +	// (no filesystem, no fstab entry); all others use a vfat /boot/efi ESP.
-+	archID, _ := incusArch.ArchitectureID(g.def.Image.Architecture)
++	archID, err := incusArch.ArchitectureID(g.def.Image.Architecture)
++	if err != nil {
++		return fmt.Errorf("Failed to get architecture ID for fstab generation: %w", err)
++	}
 +
 +	var bootEntry string
 +
