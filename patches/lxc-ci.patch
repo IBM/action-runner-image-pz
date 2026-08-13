@@ -1,8 +1,6 @@
-diff --git a/images/ubuntu.yaml b/images/ubuntu.yaml
-index 81be31e..1429e76 100644
 --- a/images/ubuntu.yaml
 +++ b/images/ubuntu.yaml
-@@ -352,7 +352,9 @@ files:
+@@ -352,7 +352,9 @@
      network:
        version: 2
        ethernets:
@@ -13,11 +11,10 @@ index 81be31e..1429e76 100644
            dhcp4: true
            dhcp-identifier: mac
    types:
-@@ -498,6 +500,22 @@ packages:
-     types:
+@@ -504,6 +506,22 @@
      - vm
  
-+  - packages:
+   - packages:
 +    - grub-ieee1275
 +    action: install
 +    architectures:
@@ -33,13 +30,14 @@ index 81be31e..1429e76 100644
 +    types:
 +    - vm
 +
-   - packages:
-     - shim-signed
++  - packages:
+     - linux-image-virtual
      action: install
-@@ -648,5 +666,72 @@ actions:
+     types:
+@@ -644,6 +662,73 @@
  
-    update-grub
-    sed -i "s#root=[^ ]*#root=${DISTROBUILDER_ROOT_UUID}#g" /boot/grub/grub.cfg
+     update-grub
+     sed -i "s#root=[^ ]*#root=${DISTROBUILDER_ROOT_UUID}#g" /boot/grub/grub.cfg
 +  architectures:
 +  - amd64
 +  - arm64
@@ -109,4 +107,4 @@ index 81be31e..1429e76 100644
 +  - s390x
    types:
    - vm
-
+ 
