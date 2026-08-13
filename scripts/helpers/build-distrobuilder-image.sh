@@ -570,6 +570,8 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
         fi
     done
     
-    build_distrobuilder_ubuntu_image "${ARGS[@]}" "$BUILD_VM"
+    # Pass positional args (version, arch, workdir) separately from the BUILD_VM
+    # flag so that omitting workdir does not land "false" into $3/WORKDIR.
+    build_distrobuilder_ubuntu_image "${ARGS[0]}" "${ARGS[1]:-}" "${ARGS[2]:-}" "$BUILD_VM"
 fi
 
