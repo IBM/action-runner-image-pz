@@ -30,5 +30,5 @@ run_script() {
 
     # Print and execute the script with the environment variables (mask sensitive values in output)
     echo "Executing: $script_path with environment variables: $env_vars_display_string"
-    sudo bash -c "${env_vars_string} ${script_path}"
+    sudo bash -c "export PATH=/usr/local/bin:/usr/local/sbin:${PATH}; ${env_vars_string} ${script_path}"
 }
