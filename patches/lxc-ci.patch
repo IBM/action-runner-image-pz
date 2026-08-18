@@ -1,0 +1,110 @@
+--- a/images/ubuntu.yaml
++++ b/images/ubuntu.yaml
+@@ -352,7 +352,9 @@
+     network:
+       version: 2
+       ethernets:
+-        enp5s0:
++        id0:
++          match:
++            name: "en*"
+           dhcp4: true
+           dhcp-identifier: mac
+   types:
+@@ -504,6 +506,22 @@
+     - vm
+ 
+   - packages:
++    - grub-ieee1275
++    action: install
++    architectures:
++    - ppc64el
++    types:
++    - vm
++
++  - packages:
++    - s390-tools
++    action: install
++    architectures:
++    - s390x
++    types:
++    - vm
++
++  - packages:
+     - linux-image-virtual
+     action: install
+     types:
+@@ -644,6 +662,73 @@
+ 
+     update-grub
+     sed -i "s#root=[^ ]*#root=${DISTROBUILDER_ROOT_UUID}#g" /boot/grub/grub.cfg
++  architectures:
++  - amd64
++  - arm64
++  types:
++  - vm
++
++- trigger: post-files
++  action: |-
++    #!/bin/sh
++    set -eux
++
++    # Install GRUB for PowerPC IEEE1275 (pSeries/PowerNV).
++    # Only Ubuntu 24.04+ (noble) is supported on ppc64le VM builds.
++    # Ubuntu 22.04 (jammy) ships GRUB 2.06 which fails to install in
++    # the distrobuilder chroot environment; 22.04 ppc64le VM is not
++    # supported.
++    LOOP_DEV="${DISTROBUILDER_LOOP_DEVICE}"
++    if [ -n "${LOOP_DEV}" ]; then
++      mkdir -p /boot/grub
++      echo "(hd0) ${LOOP_DEV}" > /boot/grub/device.map
++      # --skip-fs-probe: prevents grub-install from probing the host's
++      # /boot filesystem (e.g. /dev/md127 RAID) through the chroot mount,
++      # which causes 'unknown filesystem'. Safe because the PReP partition
++      # (GPT type 4100) needs no filesystem — GRUB writes its core image
++      # directly to raw partition space.
++      # --no-nvram: ofpathname (powerpc-utils) refuses to run on PowerNV
++      # bare-metal hosts ("not supported on the PowerNV Host platform"),
++      # so NVRAM update must be skipped. Harmless for image builds.
++      grub-install --target=powerpc-ieee1275 --skip-fs-probe --no-nvram "${LOOP_DEV}p1"
++    fi
++    grub-mkconfig -o /boot/grub/grub.cfg
++    sed -i "s#root=[^ ]*#root=${DISTROBUILDER_ROOT_UUID}#g" /boot/grub/grub.cfg
++  architectures:
++  - ppc64el
++  types:
++  - vm
++
++- trigger: post-files
++  action: |-
++    #!/bin/sh
++    set -eux
++
++    # Install zipl bootloader for s390x
++    LOOP_DEV="${DISTROBUILDER_LOOP_DEVICE}"
++    KERNEL=$(ls /boot/vmlinuz-* | head -n1)
++    INITRD=$(ls /boot/initrd.img-* | head -n1)
++
++    # Create zipl configuration
++    cat > /etc/zipl.conf << EOF
++    [defaultboot]
++    default = Ubuntu
++    target = /boot
++    targetbase = ${LOOP_DEV}
++    targettype = scsi
++    targetblocksize = 512
++    targetoffset = 2048
++
++    [Ubuntu]
++    image = ${KERNEL}
++    ramdisk = ${INITRD}
++    parameters = "root=${DISTROBUILDER_ROOT_UUID} ro console=ttysclp0"
++    EOF
++
++    # Install zipl
++    zipl -V -c /etc/zipl.conf
++  architectures:
++  - s390x
+   types:
+   - vm
+ 
