@@ -78,7 +78,10 @@ run_setup() {
     
     # The script to be run inside the new shell.
     # It sources the target script and passes along all of its own arguments ("$@").
-    local inner_script=". 'scripts/${env}.sh' \"\$@\""
+    # umask 0022 is required: CIS-hardened hosts set UMASK 027 in /etc/login.defs
+    # which sudo inherits. distrobuilder runs apt as the unprivileged _apt user
+    # and it cannot traverse directories created with 0750 permissions.
+    local inner_script="umask 0022 && . 'scripts/${env}.sh' \"\$@\""
 
     # Execute using sudo bash -c, preserving GITHUB_TOKEN if set
     # The first argument after the script string ('bash') becomes $0 inside the new shell.
