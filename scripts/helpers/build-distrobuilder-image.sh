@@ -8,62 +8,14 @@
 ################################################################################
 
 # Note: Do NOT use 'set -e' in sourced scripts as it affects the parent shell
-# Instead, use explicit error checking with || return 1
 
 # Script/repository location
-# Use BASH_SOURCE[0] instead of $0 to work correctly when sourced
 SCRIPT_PATH="$(realpath "${BASH_SOURCE[0]}")"
 SCRIPT_DIR="$(dirname "$SCRIPT_PATH")"
 REPO_ROOT="$(realpath "$SCRIPT_DIR/../..")"
 
-# Color codes for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
-
-# Logging functions
-log_info() {
-    echo -e "${BLUE}[INFO]${NC} $*"
-}
-
-log_success() {
-    echo -e "${GREEN}[SUCCESS]${NC} $*"
-}
-
-log_warn() {
-    echo -e "${YELLOW}[WARN]${NC} $*"
-}
-
-log_error() {
-    echo -e "${RED}[ERROR]${NC} $*" >&2
-}
-
-# Function to get release codename
-get_release_codename() {
-    local version="$1"
-    
-    case "$version" in
-        22.04) echo "jammy" ;;
-        24.04) echo "noble" ;;
-        *)
-            log_error "Unsupported Ubuntu version: $version"
-            return 1
-            ;;
-    esac
-}
-
-# Function to check if image already exists
-check_image_exists() {
-    local alias="$1"
-    
-    if incus image info "$alias" &>/dev/null; then
-        return 0
-    else
-        return 1
-    fi
-}
+# shellcheck source=incus-common.sh disable=SC1091
+source "${SCRIPT_DIR}/incus-common.sh"
 
 # Function to detect OS type
 detect_os() {
@@ -101,7 +53,9 @@ install_dependencies() {
                 btrfs-progs \
                 git \
                 wget \
-                xz-utils >/dev/null 2>&1
+                patch \
+                xz-utils >/dev/null 2>&1 \
+                || { log_error "Failed to install build dependencies via apt"; return 1; }
             ;;
         centos|rhel|almalinux|rocky)
             log_info "Installing dependencies via dnf..."
@@ -122,7 +76,8 @@ install_dependencies() {
                 git \
                 wget \
                 xz \
-                patch >/dev/null 2>&1
+                patch >/dev/null 2>&1 \
+                || { log_error "Failed to install build dependencies via dnf"; return 1; }
             ;;
         fedora)
             log_info "Installing dependencies via dnf (Fedora)..."
@@ -140,7 +95,8 @@ install_dependencies() {
                 git \
                 wget \
                 xz \
-                patch >/dev/null 2>&1
+                patch >/dev/null 2>&1 \
+                || { log_error "Failed to install build dependencies via dnf"; return 1; }
             ;;
         *)
             log_error "Unsupported OS: ${os_type}"
@@ -285,7 +241,7 @@ build_distrobuilder_ubuntu_image() {
     
     # Get release codename
     local CODENAME
-    CODENAME=$(get_release_codename "$VERSION")
+    CODENAME=$(get_ubuntu_codename "$VERSION")
     
     # Define image alias (add -vm suffix for VM images)
     local IMAGE_ALIAS="ubuntu-${VERSION}"
@@ -303,9 +259,7 @@ build_distrobuilder_ubuntu_image() {
     log_info "Build Method: distrobuilder"
     log_info "=========================================="
     
-    # Check if image already exists
-    if check_image_exists "$IMAGE_ALIAS"; then
-        log_info "Image '${IMAGE_ALIAS}' already exists in Incus. Skipping build."
+    if ! check_or_replace_image "$IMAGE_ALIAS" "distrobuilder"; then
         return 0
     fi
     
@@ -492,7 +446,9 @@ build_distrobuilder_ubuntu_image() {
         fi
     fi
     log_success "Image imported successfully"
-    
+
+    set_image_source_tag "$IMAGE_ALIAS" "distrobuilder"
+
     # Verify import
     log_info "Verifying image import..."
     if check_image_exists "$IMAGE_ALIAS"; then
@@ -519,38 +475,22 @@ build_distrobuilder_ubuntu_image() {
     return 0
 }
 
-# Main execution if run directly
+# Direct execution
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-    # Check if running as root (required for some operations)
     if [[ $EUID -ne 0 ]]; then
         log_error "This script must be run as root (use sudo)"
-        return 1
+        exit 1
     fi
-    
-    # Ensure /usr/local/bin is in PATH (where Incus is installed)
-    export PATH="/usr/local/bin:$PATH"
-    
-    # Check if incus is available
-    if ! command -v incus &>/dev/null; then
-        log_error "Incus is not installed or not in PATH"
-        log_error "Checked PATH: $PATH"
-        return 1
-    fi
-    
-    # Check if incus daemon is running
-    if ! incus admin waitready --timeout=5 >/dev/null 2>&1; then
-        log_error "Incus daemon is not running or not ready"
-        return 1
-    fi
-    
-    # Parse arguments
+
+    incus_preflight
+
     if [[ $# -lt 1 ]]; then
         echo "Usage: $0 <version> [arch] [workdir] [--vm]"
         echo "  version: 22.04 or 24.04"
-        echo "  arch: ppc64le, s390x, or x86_64 (default: auto-detect)"
-        echo "  workdir: Build directory (default: ~/incus-images/official-ubuntu)"
-        echo "  --vm: Build VM image instead of container (optional)"
-        return 1
+        echo "  arch:    ppc64le, s390x, or x86_64 (auto-detected if omitted)"
+        echo "  workdir: Build directory (auto-detected if omitted)"
+        echo "  --vm:    Build VM image instead of container"
+        exit 1
     fi
     
     # Check for --vm flag

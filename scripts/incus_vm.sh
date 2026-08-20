@@ -286,23 +286,35 @@ build_image() {
   local BUILD_PREREQS_PATH
   BUILD_PREREQS_PATH="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
 
+  # Read the base image's source tag (cloud-img / incus-img / distrobuilder) so it
+  # becomes part of the build fingerprint below. This makes switching base source
+  # (e.g. --use-incus-img -> --use-cloud-img) force a rebuild instead of silently
+  # reusing a runner image built from a different base.
+  local BUILD_SOURCE
+  BUILD_SOURCE=$(get_image_source_tag "ubuntu-${IMAGE_VERSION}-vm")
+
   # Search for an existing image that matches the strict criteria:
-  # (commit, os, version, and setup)
+  # (commit, os, version, setup, and base source)
   # We use 'jq' to filter the JSON output of incus image list.
   local EXISTING_IMAGE_JSON
   # shellcheck disable=SC2154
-  EXISTING_IMAGE_JSON=$(incus image list --format=json | jq -r --arg commit "${BUILD_SHA}" --arg os "${clean_args[0]}" --arg ver "${clean_args[1]}" --arg setup "${clean_args[4]}" \
+  EXISTING_IMAGE_JSON=$(incus image list --format=json | jq -r --arg commit "${BUILD_SHA}" --arg os "${clean_args[0]}" --arg ver "${clean_args[1]}" --arg setup "${clean_args[4]}" --arg src "${BUILD_SOURCE}" \
     '.[] | select(
         .type == "virtual-machine" and
-        .properties["properties.build.commit"] == $commit and 
-        .properties["properties.build.os"] == $os and 
-        .properties["properties.build.version"] == $ver and 
-        .properties["properties.build.setup"] == $setup
+        .properties["properties.build.commit"] == $commit and
+        .properties["properties.build.os"] == $os and
+        .properties["properties.build.version"] == $ver and
+        .properties["properties.build.setup"] == $setup and
+        .properties["properties.build.source"] == $src
     )')
 
-  # Check if we found a match
-  if [[ -n "$EXISTING_IMAGE_JSON" ]]; then
-    echo "Idempotency Check: Found existing image matching Commit, OS, Version, and Setup."
+  # If --delete-incus-img was passed, delete any existing image and fall through to a
+  # fresh build. Otherwise, skip the build when a matching image already exists.
+  if [[ "${DELETE_INCUS_IMG}" == "true" ]]; then
+    msg "Delete flag detected. Deleting existing image with alias ${IMAGE_ALIAS} before rebuilding."
+    cleanup_old_image "${IMAGE_ALIAS}"
+  elif [[ -n "$EXISTING_IMAGE_JSON" ]]; then
+    echo "Idempotency Check: Found existing image matching Commit, OS, Version, Setup, and Source."
 
     local FINGERPRINT
     FINGERPRINT=$(echo "$EXISTING_IMAGE_JSON" | jq -r '.fingerprint')
@@ -322,11 +334,6 @@ build_image() {
 
     echo "Skipping build."
     return 0
-  fi
-
-  if [[ "${DELETE_INCUS_IMG}" == "true" ]]; then
-      msg "Delete flag detected. Attempting to delete existing image with alias ${IMAGE_ALIAS} before building."
-      cleanup_old_image "${IMAGE_ALIAS}"
   fi
 
   if [ ! -d "${BUILD_PREREQS_PATH}" ]; then
@@ -363,6 +370,22 @@ build_image() {
 
   incus ls
 
+  # Cloud images need a config drive and network config injected before first
+  # start since they lack the incus-agent.
+  if [[ "${USE_CLOUD_IMG:-true}" == "true" ]]; then
+    msg "Attaching cloud-init config drive..."
+    incus config device add "${BUILD_VM}" cloud-init disk source=cloud-init:config
+
+    msg "Setting cloud-init DHCP network config..."
+    incus config set "${BUILD_VM}" cloud-init.network-config="network:
+  version: 2
+  ethernets:
+    id0:
+      match:
+        name: en*
+      dhcp4: true"
+  fi
+
   # Configure CPU and memory resources
   configure_cpu_resources "${BUILD_VM}" 4
   configure_memory_resources "${BUILD_VM}" 4096 512
@@ -377,17 +400,20 @@ build_image() {
   msg "Checking current partitions..."
   incus exec "${BUILD_VM}" -- cat /proc/partitions
 
-  # Determine root partition number based on architecture:
-  # ppc64le: sda1=root, sda2=PReP(8MB raw)  → root is partition 1
-  # s390x:   sda1=boot(ext4), sda2=root      → root is partition 2
-  # x86_64/aarch64: sda1=EFI, sda2=root      → root is partition 2
-  local ROOT_PART=2
-  if [[ "${ARCH}" == "ppc64le" ]]; then
-    ROOT_PART=1
-  fi
+  # Detect root partition dynamically to avoid hard-coding sda1 vs sda2.
+  local ROOT_DEV ROOT_DISK ROOT_PART_NUM
+  ROOT_DEV=$(incus exec "${BUILD_VM}" -- findmnt -n -o SOURCE /)
+  # shellcheck disable=SC2001
+  ROOT_DISK=$(echo "$ROOT_DEV" | sed 's/[0-9]*$//')
+  ROOT_PART_NUM=$(echo "$ROOT_DEV" | grep -oE '[0-9]+$')
 
-  msg "Expanding root partition (partition ${ROOT_PART}) on /dev/sda..."
-  incus exec "${BUILD_VM}" -- growpart /dev/sda "${ROOT_PART}" || true
+  msg "Detected root device: ${ROOT_DEV} (disk: ${ROOT_DISK}, partition: ${ROOT_PART_NUM})"
+
+  msg "Expanding root partition (partition ${ROOT_PART_NUM}) on ${ROOT_DISK}..."
+  incus exec "${BUILD_VM}" -- growpart "${ROOT_DISK}" "${ROOT_PART_NUM}" || true
+
+  # Enable cloud-init-local if present (safe no-op when absent).
+  incus exec "${BUILD_VM}" -- systemctl enable --now cloud-init-local 2>/dev/null || true
 
   msg "Rebooting VM to apply partition changes..."
   incus restart "${BUILD_VM}"
@@ -395,8 +421,8 @@ build_image() {
   wait_for_vm "${BUILD_VM}"
 
   msg "Resizing root filesystem..."
-  incus exec "${BUILD_VM}" -- resize2fs "/dev/sda${ROOT_PART}"
-  
+  incus exec "${BUILD_VM}" -- resize2fs "${ROOT_DEV}"
+
   msg "Final Disk Usage:"
   incus exec "${BUILD_VM}" -- df -h
 
@@ -496,6 +522,7 @@ build_image() {
               properties.build.type="${clean_args[2]}" \
               properties.build.cpu="${clean_args[3]}" \
               properties.build.setup="${clean_args[4]}" \
+              properties.build.source="${BUILD_SOURCE}" \
               properties.build.commit="${BUILD_SHA}" \
               properties.build.date="${BUILD_DATE}"
 
@@ -513,7 +540,7 @@ build_image() {
 
           # D. Export Image
           if [[ "${SKIP_INCUS_IMG_EXPORT}" == "false" ]]; then
-              EXPORT_PATH="${EXPORT}/${IMAGE_OS}-${IMAGE_VERSION}-${ARCH}${WORKER_TYPE}${WORKER_CPU}"
+              EXPORT_PATH="${EXPORT}/${IMAGE_OS}-${IMAGE_VERSION}-${ARCH}-vm${WORKER_TYPE}${WORKER_CPU}"
               msg "Exporting image to ${EXPORT_PATH}..."
               
               # Clean up any existing export to avoid tar "Cannot unlink" errors
@@ -559,9 +586,25 @@ run() {
   # shellcheck disable=SC2154
   local BASE_ALIAS="ubuntu-${IMAGE_VERSION}-vm"
 
+  # shellcheck disable=SC1091
+  source "${HELPERS_DIR}/incus-common.sh"
+
   if [[ "${SKIP_INCUS_BASE_IMG}" == "true" ]]; then
     echo "Skipping base image import (--skip-incus-base-img)"
-  elif incus image info "${BASE_ALIAS}" &>/dev/null; then
+  else
+    # import_ubuntu_base_image handles idempotency internally via
+    # check_or_replace_image with the correct source tag for whichever
+    # import path it selects (cloud-img, incus-img, or distrobuilder).
+    if ! import_ubuntu_base_image "vm" "${IMAGE_VERSION}"; then
+      echo "Error: Failed to build/import base image '${BASE_ALIAS}'. Aborting." >&2
+      return 1
+    fi
+
+    if ! incus image info "${BASE_ALIAS}" &>/dev/null; then
+      echo "Error: Base image '${BASE_ALIAS}' not found in Incus after import. Aborting." >&2
+      return 1
+    fi
+
     # Verify the existing image is actually a virtual-machine, not a container
     local BASE_TYPE
     BASE_TYPE=$(incus image info "${BASE_ALIAS}" | awk '/^Type:/{print $2}')
@@ -570,21 +613,6 @@ run() {
       echo "Delete it with: sudo incus image delete ${BASE_ALIAS}" >&2
       return 1
     fi
-    echo "Base image '${BASE_ALIAS}' found (type: virtual-machine). Skipping import."
-  else
-    echo "Base image '${BASE_ALIAS}' not found. Building now..."
-    # shellcheck disable=SC1091
-    source "${HELPERS_DIR}/import_ubuntu_base_images.sh"
-    if ! import_ubuntu_base_images "vm" "${IMAGE_VERSION}"; then
-      echo "Error: Failed to build/import base image '${BASE_ALIAS}'. Aborting." >&2
-      return 1
-    fi
-    # Verify the image actually landed in Incus before proceeding
-    if ! incus image info "${BASE_ALIAS}" &>/dev/null; then
-      echo "Error: Base image '${BASE_ALIAS}' not found in Incus after import. Aborting." >&2
-      return 1
-    fi
-    echo "Base image '${BASE_ALIAS}' confirmed in Incus."
   fi
 
   # Now build the VM image

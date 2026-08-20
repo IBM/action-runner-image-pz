@@ -114,23 +114,35 @@ build_image() {
   local BUILD_PREREQS_PATH
   BUILD_PREREQS_PATH="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
 
+  # Read the base image's source tag (cloud-img / incus-img / distrobuilder) so it
+  # becomes part of the build fingerprint below. This makes switching base source
+  # (e.g. --use-incus-img -> --use-cloud-img) force a rebuild instead of silently
+  # reusing a runner image built from a different base.
+  local BUILD_SOURCE
+  BUILD_SOURCE=$(get_image_source_tag "ubuntu-${IMAGE_VERSION}")
+
   # Search for an existing image that matches the strict criteria:
-  # (commit, os, version, and setup)
+  # (commit, os, version, setup, and base source)
   # We use 'jq' to filter the JSON output of incus image list.
   local EXISTING_IMAGE_JSON
   # shellcheck disable=SC2154
-  EXISTING_IMAGE_JSON=$(incus image list --format=json | jq -r --arg commit "${BUILD_SHA}" --arg os "${clean_args[0]}" --arg ver "${clean_args[1]}" --arg setup "${clean_args[4]}" \
+  EXISTING_IMAGE_JSON=$(incus image list --format=json | jq -r --arg commit "${BUILD_SHA}" --arg os "${clean_args[0]}" --arg ver "${clean_args[1]}" --arg setup "${clean_args[4]}" --arg src "${BUILD_SOURCE}" \
     '.[] | select(
         .type == "container" and
         .properties["properties.build.commit"] == $commit and
         .properties["properties.build.os"] == $os and
         .properties["properties.build.version"] == $ver and
-        .properties["properties.build.setup"] == $setup
+        .properties["properties.build.setup"] == $setup and
+        .properties["properties.build.source"] == $src
     )')
 
-  # Check if we found a match
-  if [[ -n "$EXISTING_IMAGE_JSON" ]]; then
-    echo "Idempotency Check: Found existing image matching Commit, OS, Version, and Setup."
+  # If --delete-incus-img was passed, delete any existing image and fall through to a
+  # fresh build. Otherwise, skip the build when a matching image already exists.
+  if [[ "${DELETE_INCUS_IMG}" == "true" ]]; then
+    msg "Delete flag detected. Deleting existing image with alias ${IMAGE_ALIAS} before rebuilding."
+    cleanup_old_image "${IMAGE_ALIAS}"
+  elif [[ -n "$EXISTING_IMAGE_JSON" ]]; then
+    echo "Idempotency Check: Found existing image matching Commit, OS, Version, Setup, and Source."
 
     local FINGERPRINT
     FINGERPRINT=$(echo "$EXISTING_IMAGE_JSON" | jq -r '.fingerprint')
@@ -150,11 +162,6 @@ build_image() {
 
     echo "Skipping build."
     return 0
-  fi
-
-  if [[ "${DELETE_INCUS_IMG}" == "true" ]]; then
-      msg "Delete flag detected. Attempting to delete existing image with alias ${IMAGE_ALIAS} before building."
-      cleanup_old_image "${IMAGE_ALIAS}"
   fi
 
   if [ ! -d "${BUILD_PREREQS_PATH}" ]; then
@@ -182,7 +189,22 @@ build_image() {
   incus ls
 
   wait_for_container "${BUILD_CONTAINER}"
-  
+
+  # Cloud images need netplan injected since cloud-init can't detect the Incus
+  # data source in containers.
+  if [[ "${USE_CLOUD_IMG:-true}" == "true" ]]; then
+    msg "Injecting netplan DHCP config..."
+    incus exec "${BUILD_CONTAINER}" -- tee /etc/netplan/99-dhcp.yaml > /dev/null <<'EOF'
+network:
+  version: 2
+  ethernets:
+    eth0:
+      dhcp4: true
+EOF
+    incus exec "${BUILD_CONTAINER}" -- chmod 600 /etc/netplan/99-dhcp.yaml
+    incus exec "${BUILD_CONTAINER}" -- netplan apply
+  fi
+
   msg "Mapping localhost..."
   incus exec "${BUILD_CONTAINER}" -- sh -c "echo '127.0.1.1 ${BUILD_CONTAINER}' >> /etc/hosts"
 
@@ -278,6 +300,7 @@ build_image() {
               properties.build.type="${clean_args[2]}" \
               properties.build.cpu="${clean_args[3]}" \
               properties.build.setup="${clean_args[4]}" \
+              properties.build.source="${BUILD_SOURCE}" \
               properties.build.commit="${BUILD_SHA}" \
               properties.build.date="${BUILD_DATE}"
 
@@ -340,22 +363,22 @@ run() {
 
   local BASE_ALIAS="ubuntu-${IMAGE_VERSION}"
 
-  if incus image info "${BASE_ALIAS}" &>/dev/null; then
-    echo "Base image '${BASE_ALIAS}' found. Skipping import."
-  else
-    echo "Base image '${BASE_ALIAS}' not found. Starting import..."
-    # shellcheck disable=SC1091
-    source "${HELPERS_DIR}/import_ubuntu_base_images.sh"
-    if ! import_ubuntu_base_images "container" "${IMAGE_VERSION}"; then
-      echo "Error: Failed to import base image '${BASE_ALIAS}'. Aborting." >&2
-      return 1
-    fi
-    if ! incus image info "${BASE_ALIAS}" &>/dev/null; then
-      echo "Error: Base image '${BASE_ALIAS}' not found in Incus after import. Aborting." >&2
-      return 1
-    fi
-    echo "Base image '${BASE_ALIAS}' confirmed in Incus."
+  # shellcheck disable=SC1091
+  source "${HELPERS_DIR}/incus-common.sh"
+
+  # import_ubuntu_base_image handles idempotency internally via
+  # check_or_replace_image with the correct source tag for whichever
+  # import path it selects (cloud-img, incus-img, or distrobuilder).
+  if ! import_ubuntu_base_image "container" "${IMAGE_VERSION}"; then
+    echo "Error: Failed to import base image '${BASE_ALIAS}'. Aborting." >&2
+    return 1
   fi
+
+  if ! incus image info "${BASE_ALIAS}" &>/dev/null; then
+    echo "Error: Base image '${BASE_ALIAS}' not found in Incus after import. Aborting." >&2
+    return 1
+  fi
+  echo "Base image '${BASE_ALIAS}' confirmed in Incus."
   
   # Now build the container image
   build_image "$@"

@@ -61,19 +61,25 @@ select_menu() {
 # Final execution function. Centralizes the sudo call.
 run_setup() {
     local env="$1" os="$2" version="$3" setup_type="$4"
-    local worker_arg="${5:-}" # Default to empty string if not provided
-    local arch_arg="${6:-}"   # Default to empty string if not provided
+    local worker_arg="${5:-}"
+    local arch_arg="${6:-}"
+    local img_source="${7:-cloud-img}"
 
     echo "Proceeding with ${env} setup for ${os} ${version}..."
     echo "Setup type: ${setup_type}"
     [[ -n "$worker_arg" ]] && echo "Worker size: ${worker_arg#-}"
     [[ -n "$arch_arg" ]] && echo "Architecture flag: ${arch_arg#-}"
-    
+    echo "Base image source: ${img_source}"
+
     # Use an array for safer argument passing
     local script_args=("${os}" "${version}" "${worker_arg}" "${arch_arg}" "${setup_type}")
 
     if [[ "$env" == "vm" ]]; then
         script_args=("${script_args[@]}" "--skip-snap-lxd")
+    fi
+
+    if [[ "$img_source" == "incus-img" ]]; then
+        script_args=("${script_args[@]}" "--use-incus-img")
     fi
     
     # The script to be run inside the new shell.
@@ -141,6 +147,17 @@ get_setup_type() {
         "Minimal")  echo "minimal";;
         "Complete") echo "complete";;
         "Back")     return 1;;
+    esac
+}
+
+get_base_image_source() {
+    local img_choice
+    img_choice=$(select_menu "Choose Ubuntu base image source: " "Cloud Images" "Incus Images" "Back")
+
+    case "$img_choice" in
+        "Cloud Images") echo "cloud-img" ;;
+        "Incus Images") echo "incus-img" ;;
+        "Back")         return 1 ;;
     esac
 }
 
@@ -241,8 +258,14 @@ main() {
             read -r worker_arg arch_arg <<< "$lxd_args"
         fi
 
+        # Get base image source for Incus environments
+        local img_source="cloud-img"
+        if [[ "$env" == "incus_container" || "$env" == "incus_vm" ]]; then
+            img_source=$(get_base_image_source) || continue
+        fi
+
         # Run the final setup
-        run_setup "$env" "$os" "$version" "$setup_type" "$worker_arg" "$arch_arg"
+        run_setup "$env" "$os" "$version" "$setup_type" "$worker_arg" "$arch_arg" "$img_source"
         
         echo "Setup script finished."
         # Optional: Ask to continue or exit after a successful run
