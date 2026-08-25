@@ -221,7 +221,7 @@ diff --git a/distrobuilder/vm_test.go b/distrobuilder/vm_test.go
 index b40129d..542cbd4 100644
 --- a/distrobuilder/vm_test.go
 +++ b/distrobuilder/vm_test.go
-@@ -77,6 +77,8 @@ func TestLsblkOutput(t *testing.T) {
+@@ -77,6 +77,10 @@ func TestLsblkOutput(t *testing.T) {
  	}{
  		{"DiskEmpty", [][]string{{"--zap-all"}}, 1},
  		{"UEFI", nil, 3},
@@ -276,7 +276,7 @@ index bb77e4b..1476807 100644
  	fs := target.VM.Filesystem
  
  	if fs == "" {
-@@ -44,7 +42,23 @@ LABEL=UEFI    /boot/efi vfat  defaults  0 0
+@@ -44,7 +42,26 @@ LABEL=UEFI    /boot/efi vfat  defaults  0 0
  		options = fmt.Sprintf("%s,subvol=@", options)
  	}
  
