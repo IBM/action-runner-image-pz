@@ -112,7 +112,7 @@ index 4e851cfd..7fcd2799 100644
              public static readonly Architecture PlatformArchitecture = Architecture.X64;
  #endif
 diff --git a/src/Runner.Common/Runner.Common.csproj b/src/Runner.Common/Runner.Common.csproj
-index 2dc7f7ec..b58e8aa1 100644
+index 065c3369..a12d3c07 100644
 --- a/src/Runner.Common/Runner.Common.csproj
 +++ b/src/Runner.Common/Runner.Common.csproj
 @@ -4,6 +4,10 @@
@@ -142,7 +142,7 @@ index 97273a1a..78f78701 100644
                          throw new NotSupportedException(); // Should never reach here.
                  }
 diff --git a/src/Runner.Listener/Runner.Listener.csproj b/src/Runner.Listener/Runner.Listener.csproj
-index 8bf31b37..c31d46bc 100644
+index d2b1060d..c76c28b4 100644
 --- a/src/Runner.Listener/Runner.Listener.csproj
 +++ b/src/Runner.Listener/Runner.Listener.csproj
 @@ -5,6 +5,9 @@
@@ -184,7 +184,7 @@ index a786cf1c..1a7cf064 100644
      <NoWarn>NU1701;NU1603;SYSLIB0050;SYSLIB0051</NoWarn>
      <Version>$(Version)</Version>
 diff --git a/src/Runner.Sdk/Runner.Sdk.csproj b/src/Runner.Sdk/Runner.Sdk.csproj
-index 54e95043..22acad7e 100644
+index 4463c055..a6f5c2ab 100644
 --- a/src/Runner.Sdk/Runner.Sdk.csproj
 +++ b/src/Runner.Sdk/Runner.Sdk.csproj
 @@ -5,6 +5,9 @@
@@ -198,7 +198,7 @@ index 54e95043..22acad7e 100644
      <NoWarn>NU1701;NU1603;SYSLIB0050;SYSLIB0051</NoWarn>
      <Version>$(Version)</Version>
 diff --git a/src/Runner.Worker/Runner.Worker.csproj b/src/Runner.Worker/Runner.Worker.csproj
-index da808974..44f42076 100644
+index b7d5836e..8388e787 100644
 --- a/src/Runner.Worker/Runner.Worker.csproj
 +++ b/src/Runner.Worker/Runner.Worker.csproj
 @@ -5,6 +5,9 @@
@@ -212,7 +212,7 @@ index da808974..44f42076 100644
      <NoWarn>NU1701;NU1603;SYSLIB0050;SYSLIB0051</NoWarn>
      <Version>$(Version)</Version>
 diff --git a/src/Sdk/Sdk.csproj b/src/Sdk/Sdk.csproj
-index 7f4be898..c8d6ea8d 100644
+index b1ef1efb..c5b7a761 100644
 --- a/src/Sdk/Sdk.csproj
 +++ b/src/Sdk/Sdk.csproj
 @@ -4,7 +4,10 @@
@@ -372,4 +372,4 @@ index 056a312e..3f9a3679 100644
          <Exec Command="%22$(DesktopMSBuild)%22 Runner.Service/Windows/RunnerService.csproj /p:Configuration=$(BUILDCONFIG) /p:PackageRuntime=$(PackageRuntime) /p:OutputPath=%22$(MSBuildProjectDirectory)/../_layout/bin%22" ConsoleToMSBuild="true" Condition="'$(PackageRuntime)' == 'win-x64' Or '$(PackageRuntime)' == 'win-x86' Or '$(PackageRuntime)' == 'win-arm64'" />
      </Target>
  
-# From upstream commit: 760d2cfe38fbc3bd6aadecdd86695b21765b5aa2
+# From upstream commit: e3ccfc1c4fd17af55b0f3f4b6baf6e24299babec
