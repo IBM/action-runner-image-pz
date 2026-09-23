@@ -106,6 +106,14 @@ cat << EOF > /etc/docker/daemon.json
 }
 EOF
 
+# On ppc64le (PowerVS), set the Docker bridge MTU to 1460 to match the host NIC
+# (pi_network_mtu = 1460). The default 1500 causes the PowerVS SDN to reset TCP
+# connections mid-transfer on large downloads. Not needed on x86_64 or s390x.
+if [[ "$ARCH" == "ppc64le" ]]; then
+    tmp=$(mktemp)
+    jq '. + {"mtu": 1460}' /etc/docker/daemon.json > "$tmp" && mv "$tmp" /etc/docker/daemon.json
+fi
+
 # Create systemd-tmpfiles configuration for Docker
 cat <<EOF | sudo tee /etc/tmpfiles.d/docker.conf
 L /run/docker.sock - - - - root docker 0770
