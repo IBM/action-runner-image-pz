@@ -1,6 +1,60 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "config:recommended"
+    "config:recommended",
+    ":dependencyDashboard",
+    ":semanticCommits",
+    ":separateMajorReleases"
+  ],
+  "schedule": [
+    "before 3am on Monday"
+  ],
+  "prConcurrentLimit": 2,
+  "prHourlyLimit": 2,
+  "labels": [
+    "dependencies"
+  ],
+  "packageRules": [
+    {
+      "description": "Group all GitHub Actions updates together",
+      "matchManagers": [
+        "github-actions"
+      ],
+      "groupName": "GitHub Actions"
+    },
+    {
+      "description": "Group all Docker base image updates",
+      "matchDatasources": [
+        "docker"
+      ],
+      "groupName": "Docker base images"
+    },
+    {
+      "description": "Require approval for major updates to critical dependencies",
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "matchDepNames": [
+        "almalinux",
+        "ubuntu",
+        "actions/checkout"
+      ],
+      "dependencyDashboardApproval": true
+    }
+  ],
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "labels": [
+      "security"
+    ],
+    "assignees": [
+      "adilhusain-s"
+    ]
+  },
+  "assignees": [
+    "adilhusain-s"
+  ],
+  "reviewers": [
+    "adilhusain-s"
   ]
 }
