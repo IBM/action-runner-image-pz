@@ -112,6 +112,7 @@ EOF
 if [[ "$ARCH" == "ppc64le" ]]; then
     tmp=$(mktemp)
     jq '. + {"mtu": 1460}' /etc/docker/daemon.json > "$tmp" && mv "$tmp" /etc/docker/daemon.json
+    chmod 644 /etc/docker/daemon.json
 fi
 
 # Create systemd-tmpfiles configuration for Docker
