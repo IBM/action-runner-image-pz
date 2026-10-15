@@ -9,28 +9,27 @@
 # Source the helpers for use with the script
 # shellcheck disable=SC1091
 source "$HELPER_SCRIPTS"/install.sh
+source "$HELPER_SCRIPTS"/os.sh
 
-# Set architecture-specific variables using a case statement for clarity
-case "$ARCH" in
-    "ppc64le" | "s390x")
-        echo "No actions defined for $ARCH architecture."
-        exit 0
-        ;;
-    "x86_64")
-        package_arch="amd64"
-        ;;
-    *)
-        package_arch="$ARCH"
-        ;;
-esac
+if is_x64; then
+  gh_cli_arch="amd64"
+elif is_arm64; then
+  gh_cli_arch="arm64"
+elif is_ppc64le || is_s390x; then
+  echo "No actions defined for $ARCH architecture."
+  exit 0
+else
+  echo "Unsupported architecture"
+  exit 1
+fi
 
 # Download GitHub CLI
-gh_cli_url=$(resolve_github_release_asset_url "cli/cli" "contains(\"linux\") and contains(\"${package_arch}\") and endswith(\".deb\")" "latest")
+gh_cli_url=$(resolve_github_release_asset_url "cli/cli" "contains(\"linux\") and contains(\"$gh_cli_arch\") and endswith(\".deb\")" "latest")
 gh_cli_deb_path=$(download_with_retry "$gh_cli_url")
 
 # Supply chain security - GitHub CLI
 hash_url=$(resolve_github_release_asset_url "cli/cli" "endswith(\"checksums.txt\")" "latest")
-external_hash=$(get_checksum_from_url "$hash_url" "linux_${package_arch}.deb" "SHA256")
+external_hash=$(get_checksum_from_url "$hash_url" "linux_${gh_cli_arch}.deb" "SHA256")
 use_checksum_comparison "$gh_cli_deb_path" "$external_hash"
 
 # Install GitHub CLI

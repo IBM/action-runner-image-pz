@@ -8,42 +8,39 @@
 # shellcheck disable=SC1091
 source "$HELPER_SCRIPTS"/install.sh
 source "$HELPER_SCRIPTS"/etc-environment.sh
+source "$HELPER_SCRIPTS"/os.sh
 
-# Set architecture-specific variables using a case statement for clarity
-case "$ARCH" in
-    "ppc64le" | "s390x")
-        echo "No actions defined for $ARCH architecture."
-        exit 0
-        ;;
-    *)
-        ;;
-esac
+if is_x64; then
+  driver_arch="linux64"
+elif is_arm64; then
+  driver_arch="linux-aarch64"
+elif is_ppc64le || is_s390x; then
+  echo "No actions defined for $ARCH architecture."
+  exit 0
+else
+  echo "Unsupported architecture"
+  exit 1
+fi
 
-# Mozillateam PPA is added manually because sometimes
-# launchpad portal sends empty answer when trying to add it automatically
+FIREFOX_REPO="ppa:mozillateam/ppa"
 
-REPO_URL="https://ppa.launchpadcontent.net/mozillateam/ppa/ubuntu/"
-GPG_FINGERPRINT="0ab215679c571d1c8325275b9bdb3d89ce49ec21"
-GPG_KEY="/etc/apt/trusted.gpg.d/mozillateam_ubuntu_ppa.gpg"
-REPO_PATH="/etc/apt/sources.list.d/mozillateam-ubuntu-ppa-focal.list"
-    
 # Install Firefox
-curl -fsSL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x${GPG_FINGERPRINT}" | sudo gpg --dearmor -o $GPG_KEY
-echo "deb $REPO_URL $(lsb_release -cs) main" > $REPO_PATH
-
+add-apt-repository $FIREFOX_REPO -y
 update_dpkgs
 install_dpkgs --target-release='o=LP-PPA-mozillateam' firefox
-rm $REPO_PATH
-    
-# Document apt source repo's
-echo "mozillateam $REPO_URL" >> "$HELPER_SCRIPTS"/apt-sources.txt
-    
-# add to global system preferences for firefox locale en_US, because other browsers have en_US local.
+
+# Remove source repos
+add-apt-repository --remove -y $FIREFOX_REPO
+
+# Document apt source repos
+echo "mozillateam $FIREFOX_REPO" >> "$HELPER_SCRIPTS"/apt-sources.txt
+
+# add to global system preferences for firefox locale en_US, because other browsers have en_US locale.
 # Default firefox local is en_GB
 echo 'pref("intl.locale.requested","en_US");' >> "/usr/lib/firefox/browser/defaults/preferences/syspref.js"
-    
+
 # Download and unpack latest release of geckodriver
-download_url=$(resolve_github_release_asset_url "mozilla/geckodriver" "test(\"linux64.tar.gz$\")" "latest")
+download_url=$(resolve_github_release_asset_url "mozilla/geckodriver" "test(\"${driver_arch}.tar.gz$\")" "latest")
 driver_archive_path=$(download_with_retry "$download_url")
 
 GECKODRIVER_DIR="/usr/local/share/gecko_driver"

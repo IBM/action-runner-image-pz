@@ -8,24 +8,26 @@
 # shellcheck disable=SC1091
 source "$HELPER_SCRIPTS"/install.sh
 source "$HELPER_SCRIPTS"/etc-environment.sh
+source "$HELPER_SCRIPTS"/os.sh
+
+if is_x64; then
+  java_arch="amd64"
+elif is_arm64; then
+  java_arch="arm64"
+elif is_ppc64le; then
+  java_arch="ppc64el"
+elif is_s390x; then
+  java_arch="s390x"
+else
+  echo "Unsupported architecture"
+  exit 1
+fi
 
 create_java_environment_variable() {
     local java_version=$1
     local default=$2
 
-    # Set architecture-specific variables using a case statement for clarity
-    case "$ARCH" in
-        "ppc64le")
-            local install_path_pattern="/usr/lib/jvm/temurin-${java_version}-jdk-ppc64el"
-            java_version_path="/usr/lib/jvm/temurin-${java_version}-jdk-ppc64el"
-            ;;
-        "x86_64")
-            local install_path_pattern="/usr/lib/jvm/temurin-${java_version}-jdk-amd64"
-            ;;
-        "s390x" | *)
-            local install_path_pattern="/usr/lib/jvm/temurin-${java_version}-jdk-${ARCH}"
-            ;;
-    esac
+    local install_path_pattern="/usr/lib/jvm/temurin-${java_version}-jdk-${java_arch}"
 
     if [[ ${default} == "True" ]]; then
         echo "Setting up JAVA_HOME variable to ${install_path_pattern}"
@@ -43,15 +45,8 @@ install_open_jdk() {
 
     # Install Java from PPA repositories.
     install_dpkgs temurin-"${java_version}"-jdk=\*
+    java_version_path="/usr/lib/jvm/temurin-${java_version}-jdk-${java_arch}"
 
-    if [ "$ARCH" = "ppc64le" ]; then
-        java_version_path="/usr/lib/jvm/temurin-${java_version}-jdk-ppc64el"
-    elif [ "$ARCH" = "s390x" ]; then
-        java_version_path="/usr/lib/jvm/temurin-${java_version}-jdk-s390x"
-    else
-        java_version_path="/usr/lib/jvm/temurin-${java_version}-jdk-amd64"
-    fi
-    
     java_toolcache_path="${AGENT_TOOLSDIRECTORY}/Java_Temurin-Hotspot_jdk"
 
     # shellcheck disable=SC2002
@@ -90,7 +85,6 @@ echo "deb [signed-by=/usr/share/keyrings/adoptium.gpg] https://packages.adoptium
 # Get all the updates from enabled repositories.
 update_dpkgs
 
-# While Ubuntu 24.04 binaries are not released in the Adoptium repo, we will not install Java
 defaultVersion=$(get_toolset_value '.java.default')
 # shellcheck disable=SC2207
 jdkVersionsToInstall=($(get_toolset_value ".java.versions[]"))
@@ -114,16 +108,40 @@ set_etc_environment_variable "ANT_HOME" "/usr/share/ant"
 
 # Install Maven
 mavenVersion=$(get_toolset_value '.java.maven')
-mavenDownloadUrl="https://dlcdn.apache.org/maven/maven-3/${mavenVersion}/binaries/apache-maven-${mavenVersion}-bin.zip"
-mavenArchiveUrl="https://archive.apache.org/dist/maven/maven-3/${mavenVersion}/binaries/apache-maven-${mavenVersion}-bin.zip"
 
-if [ ! -d "/usr/share/apache-maven-${mavenVersion}" ]; then
-    # Try CDN mirror first, fall back to archive if it fails
-    maven_archive_path=$(download_with_retry "$mavenDownloadUrl") || maven_archive_path=$(download_with_retry "$mavenArchiveUrl")
+if [[ "$mavenVersion" =~ ^[0-9]+$ ]]; then
+  mavenLatest=$(
+    curl -fsSL https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/maven-metadata.xml \
+      | grep -oE "<version>${mavenVersion}\.[0-9]+\.[0-9]+</version>" \
+      | sed -E 's#</?version>##g' \
+      | sort -V \
+      | tail -n 1
+  )
+else
+  mavenLatest="$mavenVersion"
+fi
+
+if [ -z "$mavenLatest" ]; then
+  echo "Failed to resolve Maven version from '$mavenVersion'"
+  exit 1
+fi
+
+mavenPrimaryUrl="https://archive.apache.org/dist/maven/maven-${mavenLatest%%.*}/${mavenLatest}/binaries/apache-maven-${mavenLatest}-bin.zip"
+mavenFallbackUrl="https://dlcdn.apache.org/maven/maven-${mavenLatest%%.*}/${mavenLatest}/binaries/apache-maven-${mavenLatest}-bin.zip"
+
+if [ ! -d "/usr/share/apache-maven-${mavenLatest}" ]; then
+    if ! maven_archive_path=$(
+        download_with_retry "$mavenPrimaryUrl"
+    ); then
+        echo "Primary Maven download failed, trying fallback URL..." >&2
+        maven_archive_path=$(
+            download_with_retry "$mavenFallbackUrl"
+        )
+    fi
     unzip -qq -d /usr/share "$maven_archive_path"
 fi
 
-ln -sf /usr/share/apache-maven-"${mavenVersion}"/bin/mvn /usr/bin/mvn
+ln -sf /usr/share/apache-maven-"${mavenLatest}"/bin/mvn /usr/bin/mvn
 
 # Install Gradle
 # This script founds the latest gradle release from https://services.gradle.org/versions/all
@@ -142,6 +160,7 @@ fi
 ln -sf /usr/share/gradle-"${gradleLatestVersion}"/bin/gradle /usr/bin/gradle
 
 gradle_home_dir=$(find /usr/share -depth -maxdepth 1 -name "gradle*")
+
 set_etc_environment_variable "GRADLE_HOME" "${gradle_home_dir}"
 
 # Delete java repositories and keys

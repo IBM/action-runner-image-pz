@@ -8,16 +8,12 @@
 # shellcheck disable=SC1091
 source "$HELPER_SCRIPTS"/install.sh
 source "$HELPER_SCRIPTS"/etc-environment.sh
+source "$HELPER_SCRIPTS"/os.sh
 
-# Set architecture-specific variables using a case statement for clarity
-case "$ARCH" in
-    "ppc64le" | "s390x")
-        echo "No actions defined for $ARCH architecture."
-        exit 0
-        ;;
-    *)
-        ;;
-esac
+if is_ppc64le || is_s390x; then
+    echo "No actions defined for $ARCH architecture."
+    exit 0
+fi
 
 REPO_URL="https://packages.microsoft.com/repos/edge"
 GPG_KEY="/usr/share/keyrings/microsoft-edge.gpg"
@@ -31,7 +27,7 @@ update_dpkgs
 install_dpkgs --no-install-recommends microsoft-edge-stable
 
 rm $GPG_KEY
-rm $REPO_PATH
+rm -f /etc/apt/sources.list.d/*edge*
 
 echo "microsoft-edge $REPO_URL" >> "$HELPER_SCRIPTS"/apt-sources.txt
 

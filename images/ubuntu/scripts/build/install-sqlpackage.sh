@@ -9,20 +9,15 @@
 source "$HELPER_SCRIPTS"/install.sh
 source "$HELPER_SCRIPTS"/os.sh
 
-# Set architecture-specific variables using a case statement for clarity
-case "$ARCH" in
-    "ppc64le" | "s390x")
-        echo "No actions defined for $ARCH architecture."
-        exit 0
-        ;;
-    *)
-        ;;
-esac
+if is_ppc64le || is_s390x; then
+    echo "No actions defined for $ARCH architecture."
+    exit 0
+fi
 
 # Install libssl1.1 dependency
 if is_ubuntu22; then
     focal_list=/etc/apt/sources.list.d/focal-security.list
-    echo "deb http://archive.ubuntu.com/ubuntu/ focal-security main" | tee "${focal_list}"
+    echo "deb https://archive.ubuntu.com/ubuntu/ focal-security main" | tee "${focal_list}"
     update_dpkgs
 
     install_dpkgs --no-install-recommends libssl1.1

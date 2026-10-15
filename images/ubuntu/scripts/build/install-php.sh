@@ -33,7 +33,6 @@ for version in $php_versions; do
         php"$version"-gmp \
         php"$version"-igbinary \
         php"$version"-imagick \
-        php"$version"-imap \
         php"$version"-interbase \
         php"$version"-intl \
         php"$version"-ldap \
@@ -43,7 +42,6 @@ for version in $php_versions; do
         php"$version"-mongodb \
         php"$version"-mysql \
         php"$version"-odbc \
-        php"$version"-opcache \
         php"$version"-pgsql \
         php"$version"-phpdbg \
         php"$version"-pspell \
@@ -61,6 +59,14 @@ for version in $php_versions; do
         php"$version"-zip \
         php"$version"-zmq
 
+        # https://php.watch/versions/8.4/imap-unbundled
+        # https://php.watch/articles/php-8-5-installation-upgrade-guide-debian-ubuntu
+        if [[ $version == "8.1" || $version == "8.3" ]]; then
+            install_dpkgs --no-install-recommends \
+                php"$version"-imap \
+                php"$version"-opcache
+        fi
+
         install_dpkgs --no-install-recommends php"$version"-pcov
 
         # Disable PCOV, as Xdebug is enabled by default
@@ -71,7 +77,7 @@ for version in $php_versions; do
         install_dpkgs --no-install-recommends php"$version"-recode
     fi
 
-    if [[ $version != "8.0" && $version != "8.1" && $version != "8.2" && $version != "8.3" ]]; then
+    if [[ $version != "8.0" && $version != "8.1" && $version != "8.2" && $version != "8.3" && $version != "8.5" ]]; then
         install_dpkgs --no-install-recommends php"$version"-xmlrpc php"$version"-json
     fi
 done

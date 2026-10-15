@@ -7,26 +7,24 @@
 # Source the helpers for use with the script
 # shellcheck disable=SC1091
 source "$HELPER_SCRIPTS"/install.sh
+source "$HELPER_SCRIPTS"/os.sh
 
-# Set architecture-specific variables using a case statement for clarity
-case "$ARCH" in
-    "ppc64le")
-        update_dpkgs 
-        install_dpkgs --no-install-recommends pypy
-        exit 0
-        ;;
-    "s390x")
-        # /tmp/pypy3.9-v7.3.16-s390x/bin/pypy3: error while loading shared libraries: libffi.so.6: cannot open shared object file:
-        echo "No actions defined for $ARCH architecture."
-        exit 0
-        ;;
-    "x86_64")
-        package_arch="x64"
-        ;;
-    *)
-        package_arch="$ARCH"
-        ;;
-esac
+if is_x64; then
+    package_arch="x64"
+elif is_arm64; then
+    package_arch="$ARCH"
+elif is_ppc64le; then
+    update_dpkgs
+    install_dpkgs --no-install-recommends pypy
+    exit 0
+elif is_s390x; then
+    # /tmp/pypy3.9-v7.3.16-s390x/bin/pypy3: error while loading shared libraries: libffi.so.6: cannot open shared object file:
+    echo "No actions defined for $ARCH architecture."
+    exit 0
+else
+    echo "Unsupported architecture"
+    exit 1
+fi
 
 # This function installs PyPy using the specified arguments:
 #   $1=package_url
@@ -34,7 +32,7 @@ install_pypy() {
     local package_url=$1
 
     package_tar_name=$(echo "$package_url" | awk -F/ '{print $NF}')
-    package_name=${package_tar_name/.tar.bz2/}
+    package_name=${package_tar_name%.tar.*}
 
     echo "Downloading tar archive '$package_name'"
     package_tar_temp_path=$(download_with_retry "$package_url")

@@ -7,16 +7,12 @@
 # Source the helpers for use with the script
 # shellcheck disable=SC1091
 source "$HELPER_SCRIPTS"/etc-environment.sh
+source "$HELPER_SCRIPTS"/os.sh
 
-# Set architecture-specific variables using a case statement for clarity
-case "$ARCH" in
-    "ppc64le" | "s390x")
-        echo "No actions defined for $ARCH architecture."
-        exit 0
-        ;;
-    *)
-        ;;
-esac
+if is_ppc64le || is_s390x; then
+    echo "No actions defined for $ARCH architecture."
+    exit 0
+fi
 
 # Any nonzero value for non-interactive installation
 export BOOTSTRAP_HASKELL_NONINTERACTIVE=1
@@ -34,8 +30,8 @@ prepend_etc_environment_path $ghcup_bin
 
 available_versions=$(ghcup list -t ghc -r | grep -v "prerelease" | awk '{print $2}')
 
-# Install 2 latest Haskell Major.Minor versions
-major_minor_versions=$(echo "$available_versions" | cut -d"." -f 1,2 | uniq | tail -n2)
+# Install latest Haskell Major.Minor version
+major_minor_versions=$(echo "$available_versions" | cut -d"." -f 1,2 | uniq | tail -n1)
 for major_minor_version in $major_minor_versions; do
     full_version=$(echo "$available_versions" | grep "$major_minor_version." | tail -n1)
     echo "install ghc version $full_version..."
