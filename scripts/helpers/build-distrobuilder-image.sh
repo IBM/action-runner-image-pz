@@ -3,7 +3,7 @@
 ##  File:  build-distrobuilder-image.sh
 ##  Desc:  Build Ubuntu images using distrobuilder for Incus
 ##  Usage: ./build-distrobuilder-image.sh <version> [arch]
-##         version: 22.04 or 24.04
+##         version: 22.04, 24.04 or 26.04
 ##         arch: ppc64le, s390x, or x86_64 (default: auto-detect)
 ################################################################################
 
@@ -223,19 +223,19 @@ build_distrobuilder_ubuntu_image() {
     local BUILD_VM="${4:-false}"  # New parameter for VM builds
     
     # Validate version
-    if [[ ! "$VERSION" =~ ^(22.04|24.04)$ ]]; then
-        log_error "Invalid Ubuntu version: $VERSION. Must be 22.04 or 24.04"
+    if [[ ! "$VERSION" =~ ^(22.04|24.04|26.04)$ ]]; then
+        log_error "Invalid Ubuntu version: $VERSION. Must be 22.04, 24.04 or 26.04"
         return 1
     fi
 
-    # ppc64le VM builds: only Ubuntu 24.04 (noble) is supported.
+    # ppc64le VM builds: only Ubuntu 24.04 (noble) and 26.04 (resolute) are supported.
     # Ubuntu 22.04 (jammy) ships GRUB 2.06 which cannot complete installation
     # inside the distrobuilder chroot environment; the resulting image is not
     # bootable. 22.04 container images remain supported on all architectures.
     if [[ "$BUILD_VM" == "true" && "$ARCH" == "ppc64le" && "$VERSION" == "22.04" ]]; then
         log_error "Ubuntu 22.04 ppc64le VM images are not supported."
         log_error "GRUB 2.06 (jammy) cannot install correctly in the distrobuilder"
-        log_error "chroot environment. Use Ubuntu 24.04 for ppc64le VM builds."
+        log_error "chroot environment. Use Ubuntu 24.04 or 26.04 for ppc64le VM builds."
         return 1
     fi
     
@@ -375,9 +375,14 @@ build_distrobuilder_ubuntu_image() {
     fi
     
     # Mirror selection: try the FAU mirror first (faster, reliable),
-    # fall back to the official Ubuntu ports mirror if it fails.
+    # fall back to the official Ubuntu mirror if it fails.
+    # ubuntu-ports carries only non-x86 architectures, so x86_64 (amd64) uses the main archive.
     local PRIMARY_MIRROR="https://ftp.fau.de/ubuntu-ports"
     local FALLBACK_MIRROR="https://ports.ubuntu.com/ubuntu-ports"
+    if [[ "$ARCH" == "x86_64" ]]; then
+        PRIMARY_MIRROR="https://ftp.fau.de/ubuntu"
+        FALLBACK_MIRROR="http://archive.ubuntu.com/ubuntu"
+    fi
     local SOURCE_URL="$PRIMARY_MIRROR"
 
     log_info "Checking primary mirror: ${PRIMARY_MIRROR}..."
@@ -486,7 +491,7 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
 
     if [[ $# -lt 1 ]]; then
         echo "Usage: $0 <version> [arch] [workdir] [--vm]"
-        echo "  version: 22.04 or 24.04"
+        echo "  version: 22.04, 24.04 or 26.04"
         echo "  arch:    ppc64le, s390x, or x86_64 (auto-detected if omitted)"
         echo "  workdir: Build directory (auto-detected if omitted)"
         echo "  --vm:    Build VM image instead of container"
