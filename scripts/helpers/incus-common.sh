@@ -40,7 +40,7 @@ get_image_source_tag() {
 
 set_image_source_tag() {
     local alias="$1" source="$2"
-    incus image set-property "$alias" user.image-source "${source}"
+    incus image set-property "$alias" user.image-source="${source}"
 }
 
 check_or_replace_image() {
@@ -75,6 +75,7 @@ get_ubuntu_codename() {
     case "$1" in
         22.04) echo "jammy" ;;
         24.04) echo "noble" ;;
+        26.04) echo "resolute" ;;
         *)
             log_error "Unsupported Ubuntu version: $1"
             return 1
@@ -122,8 +123,8 @@ import_cloudimg_ubuntu_image() {
     local SYSTEM_ARCH="${2:-$(uname -m)}"
     local IMAGE_TYPE="${3:-}"
 
-    if [[ "$VERSION" != "22.04" ]] && [[ "$VERSION" != "24.04" ]]; then
-        log_error "Invalid Ubuntu version: $VERSION. Must be 22.04 or 24.04"
+    if [[ "$VERSION" != "22.04" ]] && [[ "$VERSION" != "24.04" ]] && [[ "$VERSION" != "26.04" ]]; then
+        log_error "Invalid Ubuntu version: $VERSION. Must be 22.04, 24.04 or 26.04"
         return 1
     fi
 
@@ -221,8 +222,8 @@ import_incus_ubuntu_image() {
     local VERSION="${1:-}"
     local SYSTEM_ARCH="${2:-$(uname -m)}"
 
-    if [[ "$VERSION" != "22.04" ]] && [[ "$VERSION" != "24.04" ]]; then
-        log_error "Invalid Ubuntu version: $VERSION. Must be 22.04 or 24.04"
+    if [[ "$VERSION" != "22.04" ]] && [[ "$VERSION" != "24.04" ]] && [[ "$VERSION" != "26.04" ]]; then
+        log_error "Invalid Ubuntu version: $VERSION. Must be 22.04, 24.04 or 26.04"
         return 1
     fi
 
@@ -295,8 +296,8 @@ import_ubuntu_base_image() {
         return 1
     fi
 
-    if [[ "$VERSION" != "22.04" ]] && [[ "$VERSION" != "24.04" ]]; then
-        log_error "Invalid or missing Ubuntu version: '$VERSION'. Must be 22.04 or 24.04"
+    if [[ "$VERSION" != "22.04" ]] && [[ "$VERSION" != "24.04" ]] && [[ "$VERSION" != "26.04" ]]; then
+        log_error "Invalid or missing Ubuntu version: '$VERSION'. Must be 22.04, 24.04 or 26.04"
         return 1
     fi
 
