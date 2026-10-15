@@ -388,8 +388,12 @@ build_image() {
   
   msg "Enabling cloud-init-local..."
   lxc exec "${BUILD_VM}" -- systemctl enable --now cloud-init-local
-  
-  msg "Rebooting VM to apply partition changes..."
+
+  # Ubuntu 26.04 mounts /tmp as a tmpfs capped at 50% of RAM, too small for the
+  # runner build and tool archives. Keep /tmp on the root disk (no-op on 22.04/24.04).
+  lxc exec "${BUILD_VM}" -- systemctl mask tmp.mount
+
+  msg "Rebooting VM to apply partition and /tmp changes..."
   lxc restart "${BUILD_VM}"
   
   wait_for_vm "${BUILD_VM}"
