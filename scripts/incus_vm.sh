@@ -182,7 +182,7 @@ configure_cpu_resources() {
   echo "Successfully found available CPUs."
   echo "Allocating CPUs: $cpus_to_allocate to '${vm_name}'"
   
-  if ! incus config set "${vm_name}" limits.cpu "$cpus_to_allocate"; then
+  if ! incus config set "${vm_name}" limits.cpu="$cpus_to_allocate"; then
     echo "Error: Failed to set CPU limits for VM '${vm_name}'."
     return 1
   fi
@@ -269,7 +269,7 @@ configure_memory_resources() {
   # Apply the limit to the VM
   echo "Allocating ${allocate_mb}MiB to '${vm_name}'..."
   
-  if ! incus config set "${vm_name}" limits.memory "${allocate_mb}MiB"; then
+  if ! incus config set "${vm_name}" limits.memory="${allocate_mb}MiB"; then
     echo "Error: Failed to set memory limits for VM '${vm_name}'."
     return 1
   fi
@@ -415,7 +415,11 @@ build_image() {
   # Enable cloud-init-local if present (safe no-op when absent).
   incus exec "${BUILD_VM}" -- systemctl enable --now cloud-init-local 2>/dev/null || true
 
-  msg "Rebooting VM to apply partition changes..."
+  # Ubuntu 26.04 mounts /tmp as a tmpfs capped at 50% of RAM, too small for the
+  # runner build and tool archives. Keep /tmp on the root disk (no-op on 22.04/24.04).
+  incus exec "${BUILD_VM}" -- systemctl mask tmp.mount
+
+  msg "Rebooting VM to apply partition and /tmp changes..."
   incus restart "${BUILD_VM}"
 
   wait_for_vm "${BUILD_VM}"
