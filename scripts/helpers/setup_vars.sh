@@ -155,15 +155,15 @@ while [[ $# -gt 0 ]]; do
             ;;
         -h|--help)
             usage
-            # We return out of the script entirely if help is asked
-            # shellcheck disable=SC2317
-            return 0 2>/dev/null || exit 0
+            # Exit the calling script entirely if help is asked. Every caller sources this file
+            # from its own process, so 'return' would only leave this file and let the caller
+            # continue with unset variables.
+            exit 0
             ;;
         --*)
             echo "Unknown option: $1" >&2
             usage
-            # shellcheck disable=SC2317
-            return 1 2>/dev/null || exit 1
+            exit 1
             ;;
         *)
             # These are non-flag arguments (positional)
@@ -190,8 +190,7 @@ SETUP="${clean_args[4]:-minimal}"      # Default to "minimal" if not provided
 if [[ -z "$IMAGE_OS" ]] || [[ -z "$IMAGE_VERSION" ]]; then
     echo "Error: IMAGE_OS and IMAGE_VERSION are required."
     usage
-    # shellcheck disable=SC2317
-    return 1 2>/dev/null || exit 1
+    exit 1
 fi
 
 # Define Dependent Variables ---
