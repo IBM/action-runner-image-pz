@@ -10,13 +10,13 @@ Usage: $(basename "$0") [OPTIONS]
 
 Description:
   This is an interactive wrapper script designed to facilitate the setup of
-  various environments including VM (Host), LXD Container, LXD VM, Incus Container, Docker, and Podman.
+  various environments including VM (Host), LXD Container, LXD VM, Incus Container, Incus VM, Docker, and Podman.
   
   It guides the user through a menu-driven process to select:
-  1. Target Environment (VM, LXD Container, LXD VM, Incus Container, Docker, Podman)
+  1. Target Environment (VM, LXD Container, LXD VM, Incus Container, Incus VM, Docker, Podman)
   2. Operating System & Version
   3. Setup Type (Minimal vs Complete)
-  4. Infrastructure specific arguments (Worker size, Architecture)
+  4. Infrastructure specific arguments (Worker size, Architecture, Incus base image source)
 
 Options:
   -h, --help    Show this help message and exit.
@@ -33,6 +33,8 @@ IMPORTANT NOTE ON SUBSCRIPTS:
   Examples:
     scripts/lxd_container.sh --help
     scripts/incus_container.sh --help
+
+  Guides: README.md and docs/ (LXD, Incus, Docker/Podman).
 -------------------------------------------------------------------------
 EOF
 }
@@ -114,7 +116,7 @@ get_os_details() {
     case "$os_choice" in
         "Ubuntu")
             local version
-            version=$(select_menu "Select Ubuntu version: " "24.04" "22.04" "Back")
+            version=$(select_menu "Select Ubuntu version: " "26.04" "24.04" "22.04" "Back")
             [[ "$version" == "Back" ]] && return 1
             echo "ubuntu $version"
             ;;
