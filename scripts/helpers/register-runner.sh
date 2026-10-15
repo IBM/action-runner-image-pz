@@ -1,6 +1,6 @@
 #!/bin/bash
 
-while getopts r:t:l:n flag
+while getopts r:t:l:n: flag
 do
     # shellcheck disable=SC2220
     case "${flag}" in
