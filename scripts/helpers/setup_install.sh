@@ -63,11 +63,13 @@ if [ "$SETUP" == "minimal" ]; then
     )
 elif [ "$SETUP" == "complete" ]; then
     echo "Starting complete setup for $IMAGE_VERSION"
-    if [[ "$IMAGE_VERSION" == "24.04" ]]; then
-        # List of scripts to be executed
+    if [[ "$IMAGE_VERSION" == "26.04" ]]; then
+        # List of scripts to be executed (mirrors images/ubuntu/templates/build.ubuntu-26_04.pkr.hcl)
         # Note: install-git.sh and install-git-lfs.sh must come before install-runner-package.sh
         # because configure-runner.sh (called by install-runner-package.sh for ppc64le/s390x) needs git
         SCRIPT_FILES=(
+            "install-ms-repos.sh"
+            "install-powershell.sh"
             "install-actions-cache.sh"
             "install-dotnetcore-sdk.sh"
             "install-git.sh"
@@ -83,6 +85,62 @@ elif [ "$SETUP" == "complete" ]; then
             "install-swift.sh"
             "install-cmake.sh"
             "install-codeql-bundle.sh"
+            "install-awf.sh"
+            "install-container-tools.sh"
+            "install-microsoft-edge.sh"
+            "install-gcc-compilers.sh"
+            "install-firefox.sh"
+            "install-gfortran.sh"
+            "install-github-cli.sh"
+            "install-google-chrome.sh"
+            "install-google-cloud-cli.sh"
+            "install-haskell.sh"
+            "install-java-tools.sh"
+            "install-kubernetes-tools.sh"
+            "install-kotlin.sh"
+            "install-mysql.sh"
+            "install-nginx.sh"
+            "install-nvm.sh"
+            "install-nodejs.sh"
+            "install-copilot-cli.sh"
+            "install-bazel.sh"
+            "install-php.sh"
+            "install-postgresql.sh"
+            "install-ruby.sh"
+            "install-rust.sh"
+            "install-selenium.sh"
+            "install-packer.sh"
+            "install-vcpkg.sh"
+            "install-yq.sh"
+            "install-android-sdk.sh"
+            "install-pypy.sh"
+            "install-python.sh"
+            "install-zstd.sh"
+            "install-ninja.sh"
+        )
+    elif [[ "$IMAGE_VERSION" == "24.04" ]]; then
+        # List of scripts to be executed
+        # Note: install-git.sh and install-git-lfs.sh must come before install-runner-package.sh
+        # because configure-runner.sh (called by install-runner-package.sh for ppc64le/s390x) needs git
+        SCRIPT_FILES=(
+            "install-ms-repos.sh"
+            "install-powershell.sh"
+            "install-actions-cache.sh"
+            "install-dotnetcore-sdk.sh"
+            "install-git.sh"
+            "install-git-lfs.sh"
+            "install-runner-package.sh"
+            "install-azcopy.sh"
+            "install-azure-cli.sh"
+            "install-azure-devops-cli.sh"
+            "install-bicep.sh"
+            "install-apache.sh"
+            "install-aws-tools.sh"
+            "install-clang.sh"
+            "install-swift.sh"
+            "install-cmake.sh"
+            "install-codeql-bundle.sh"
+            "install-awf.sh"
             "install-container-tools.sh"
             "install-microsoft-edge.sh"
             "install-gcc-compilers.sh"
@@ -100,6 +158,7 @@ elif [ "$SETUP" == "complete" ]; then
             "install-nginx.sh"
             "install-nvm.sh"
             "install-nodejs.sh"
+            "install-copilot-cli.sh"
             "install-bazel.sh"
             "install-php.sh"
             "install-postgresql.sh"
@@ -122,6 +181,8 @@ elif [ "$SETUP" == "complete" ]; then
         # Note: install-git.sh and install-git-lfs.sh must come before install-runner-package.sh
         # because configure-runner.sh (called by install-runner-package.sh for ppc64le/s390x) needs git
         SCRIPT_FILES=(
+            "install-ms-repos.sh"
+            "install-powershell.sh"
             "install-actions-cache.sh"
             "install-dotnetcore-sdk.sh"
             "install-git.sh"
@@ -183,7 +244,7 @@ elif [ "$SETUP" == "complete" ]; then
             "install-ninja.sh"
         )
     else
-        echo "Invalid IMAGE_VERSION value for complete setup. Please set IMAGE_VERSION to contain '22.04' or '24.04'."
+        echo "Invalid IMAGE_VERSION value for complete setup. Please set IMAGE_VERSION to contain '22.04', '24.04' or '26.04'."
         exit 1
     fi
 else
