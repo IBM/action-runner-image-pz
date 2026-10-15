@@ -17,4 +17,4 @@ for version in ${versions[*]}; do
 done
 
 echo "Install versionless gfortran (latest)"
-install_dpkgs gfortran 
+install_dpkgs gfortran

@@ -7,13 +7,14 @@
 # Source the helpers for use with the script
 # shellcheck disable=SC1091
 source "$HELPER_SCRIPTS"/install.sh
+source "$HELPER_SCRIPTS"/os.sh
 
 # Install default Node.js
 default_version=$(get_toolset_value '.node.default')
 curl -fsSL https://raw.githubusercontent.com/tj/n/master/bin/n -o ~/n
 bash ~/n "$default_version"
 
-if [[ "$ARCH" == "ppc64le" || "$ARCH" == "s390x" ]]; then
+if is_ppc64le || is_s390x; then
     npm install -g grunt gulp n typescript newman vercel webpack webpack-cli yarn
 else
     # Install node modules

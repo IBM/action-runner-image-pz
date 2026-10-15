@@ -37,8 +37,19 @@ if is_ubuntu24; then
     install_dpkgs --no-install-recommends libicu74
 fi
 
-if [[ "$ARCH" == "ppc64le" || "$ARCH" == "s390x" ]]; then 
+if is_ubuntu26; then
+    install_dpkgs --no-install-recommends libicu78
+fi
+
+if is_ppc64le || is_s390x; then
     echo "Installing dotnet for architecture: $ARCH"
+    if is_ubuntu26; then
+        # .NET 8 is not in the Ubuntu 26.04 archive; Canonical publishes it in ppa:dotnet/backports.
+        # The PPA is kept so the .NET 8 runtime the self-built runner depends on keeps receiving updates.
+        add-apt-repository -y ppa:dotnet/backports
+        update_dpkgs
+        echo "dotnet-backports ppa:dotnet/backports" >> "$HELPER_SCRIPTS"/apt-sources.txt
+    fi
     install_dpkgs dotnet-sdk-8.0
 else
     # Install .NET SDKs and Runtimes
@@ -53,15 +64,20 @@ else
         # shellcheck disable=SC2207
         sdks=("${sdks[@]}" $(echo "${releases}" | jq -r '.releases[].sdks[]?.version | select(contains("preview") or contains("rc") | not)'))
     done
-    
+
     # shellcheck disable=SC2068
-    sorted_sdks=$(echo ${sdks[@]} | tr ' ' '\n' | sort -r | uniq -w 5)
-    
+    sorted_sdks=$(echo ${sdks[@]} | tr ' ' '\n' | sort -rV | awk -F'.' '!seen[$1"."$2"."int($3/100)]++' )
+
+    # Issue https://github.com/actions/runner-images/issues/13705
+    # Workaround for broken .NET SDK 10.0.103 - replace it with .NET SDK 10.0.102
+    # shellcheck disable=SC2001
+    sorted_sdks=$(echo "${sorted_sdks}" | sed 's/^10\.0\.103$/10.0.102/')
+
     ## Download installer from dot.net
     DOTNET_INSTALL_SCRIPT="https://dot.net/v1/dotnet-install.sh"
     install_script_path=$(download_with_retry $DOTNET_INSTALL_SCRIPT)
     chmod +x "$install_script_path"
-    
+
     # shellcheck disable=SC2068
     for sdk in ${sorted_sdks[@]}; do
         echo "Installing .NET SDK $sdk"

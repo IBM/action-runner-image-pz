@@ -8,28 +8,28 @@
 # Source the helpers for use with the script
 # shellcheck disable=SC1091
 source "$HELPER_SCRIPTS"/install.sh
-# shellcheck disable=SC2086
-source $HELPER_SCRIPTS/os.sh
+source "$HELPER_SCRIPTS"/os.sh
 
-# Set architecture-specific variables using a case statement for clarity
-case "$ARCH" in
-    "x86_64")
-        package_arch="amd64"
-        ;;
-    *)
-        package_arch="$ARCH"
-        ;;
-esac
+if is_x64; then
+  docker_arch="amd64"
+elif is_arm64; then
+  docker_arch="arm64"
+elif is_ppc64le; then
+  docker_arch="ppc64el"
+elif is_s390x; then
+  docker_arch="s390x"
+else
+  echo "Unsupported architecture"
+  exit 1
+fi
 
 REPO_URL="https://download.docker.com/linux/ubuntu"
 GPG_KEY="/usr/share/keyrings/docker.gpg"
 REPO_PATH="/etc/apt/sources.list.d/docker.list"
 os_codename=$(lsb_release -cs)
 
-apt_arch=$(dpkg --print-architecture)
-
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o $GPG_KEY
-echo "deb [arch=${apt_arch} signed-by=$GPG_KEY] $REPO_URL ${os_codename} stable" > $REPO_PATH
+echo "deb [arch=$docker_arch signed-by=$GPG_KEY] $REPO_URL ${os_codename} stable" > $REPO_PATH
 update_dpkgs
 
 # Install docker components which available via apt-get
@@ -55,10 +55,27 @@ done
 # Install plugins that are best installed from the GitHub repository
 # Be aware that `url` built from github repo name and plugin name because of current repo naming for those plugins
 
+case "$docker_arch" in
+    amd64) arch_pattern="amd64|x86_64" ;;
+    arm64) arch_pattern="arm64|aarch64" ;;
+    ppc64el) arch_pattern="ppc64le" ;;
+    s390x) arch_pattern="s390x" ;;
+esac
+
 plugins=$(get_toolset_value '.docker.plugins[] .plugin')
 for plugin in $plugins; do
     version=$(get_toolset_value ".docker.plugins[] | select(.plugin == \"$plugin\") | .version")
     filter=$(get_toolset_value ".docker.plugins[] | select(.plugin == \"$plugin\") | .asset_map[\"$ARCH\"]")
+
+    # Toolset asset filters are architecture-specific strings (e.g. "linux-arm64"), unlike the
+    # engine arch above, which is machine-detected. Fail fast instead of silently installing a
+    # plugin binary that doesn't match the host, which fails at runtime with "exec format error".
+    if ! [[ "$filter" =~ ($arch_pattern) ]]; then
+        echo "Error: host architecture is '$docker_arch' but toolset plugin '$plugin' targets asset '$filter'." >&2
+        echo "This build definition/toolset combination doesn't match the host it's running on." >&2
+        exit 1
+    fi
+
     url=$(resolve_github_release_asset_url "docker/$plugin" "endswith(\"$filter\")" "$version")
     binary_path=$(download_with_retry "$url" "/tmp/docker-$plugin")
     mkdir -pv "/usr/libexec/docker/cli-plugins"
@@ -109,7 +126,7 @@ EOF
 # On ppc64le, set the Docker bridge MTU to 1460 to match the host NIC
 # (pi_network_mtu = 1460). The default 1500 causes the PowerVS SDN to reset TCP
 # connections mid-transfer on large downloads. Not needed on x86_64 or s390x.
-if [[ "$ARCH" == "ppc64le" ]]; then
+if is_ppc64le; then
     tmp=$(mktemp)
     jq '. + {"mtu": 1460}' /etc/docker/daemon.json > "$tmp" && mv "$tmp" /etc/docker/daemon.json
     chmod 644 /etc/docker/daemon.json
@@ -131,7 +148,7 @@ systemctl is-enabled --quiet docker.service || systemctl enable docker.service
 sleep 10
 docker info
 
-if [[ "$ARCH" != "ppc64le" && "$ARCH" != "s390x" ]]; then 
+if ! is_ppc64le && ! is_s390x; then
     if ! is_ubuntu22; then
         # Pull Dependabot docker image
         docker pull ghcr.io/dependabot/dependabot-updater-core:latest
@@ -143,10 +160,10 @@ if [[ "$ARCH" != "ppc64le" && "$ARCH" != "s390x" ]]; then
         docker pull ghcr.io/github/gh-aw-firewall/squid:latest
         docker pull ghcr.io/github/github-mcp-server:latest
     fi
-    
+
     # Download amazon-ecr-credential-helper
     aws_latest_release_url="https://api.github.com/repos/awslabs/amazon-ecr-credential-helper/releases/latest"
-    aws_helper_url=$(curl -fsSL ${GITHUB_TOKEN:+-H "Authorization: Bearer ${GITHUB_TOKEN}"} "${aws_latest_release_url}" | jq -r '.body' | awk -v arch="$package_arch" -F'[()]' '$0 ~ "linux-" arch {print $2}')
+    aws_helper_url=$(curl -fsSL ${GITHUB_TOKEN:+-H "Authorization: Bearer ${GITHUB_TOKEN}"} "${aws_latest_release_url}" | jq -r '.body' | awk -F'[()]' '/linux-'"${docker_arch}"'/ {print $2}')
     aws_helper_binary_path=$(download_with_retry "$aws_helper_url")
 
     # Supply chain security - amazon-ecr-credential-helper

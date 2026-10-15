@@ -23,16 +23,11 @@ fi
 # Install Ruby requirements
 install_dpkgs libz-dev openssl libssl-dev
 
-# Set architecture-specific variables using a case statement for clarity
 # shellcheck disable=SC2153
-case "$ARCH" in
-    "ppc64le" | "s390x")
-        echo "Skipping Ruby installation from toolset on $ARCH architecture."
-        exit 0
-        ;;
-    *)
-        ;;
-esac
+if is_ppc64le || is_s390x; then
+    echo "Skipping Ruby installation from toolset on $ARCH architecture."
+    exit 0
+fi
 
 echo "Install Ruby from toolset..."
 toolset_versions=$(get_toolset_value '.toolcache[] | select(.name | contains("Ruby")) | .versions[]')
@@ -61,7 +56,7 @@ for toolset_version in ${toolset_versions[@]}; do
     echo "Expand '$package_tar_name' to the '$ruby_version_path' folder"
     tar xf "$package_archive_path" -C "$ruby_version_path"
 
-    complete_file_path="$ruby_version_path/x64.complete"
+    complete_file_path="$ruby_version_path/$arch.complete"
     if [[ ! -f $complete_file_path ]]; then
         echo "Create complete file"
         touch "$complete_file_path"

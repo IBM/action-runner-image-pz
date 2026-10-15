@@ -7,33 +7,32 @@
 # Source the helpers for use with the script
 # shellcheck disable=SC1091
 source "$HELPER_SCRIPTS"/install.sh
+source "$HELPER_SCRIPTS"/os.sh
 
-# Set architecture-specific variables using a case statement for clarity
-case "$ARCH" in
-    "x86_64")
-        package_arch="x64"
-        bundle_platform_name="linux64"
-        ;;
-    "aarch64")
-        package_arch="aarch64"
-        bundle_platform_name="linux-aarch64"
-        ;;
-    *)
-        echo "No actions defined for $ARCH architecture."
-        exit 0
-        ;;
-esac
+if is_x64; then
+    package_arch="x64"
+    bundle_platform_name="linux64"
+elif is_arm64; then
+    package_arch="aarch64"
+    bundle_platform_name="linux-aarch64"
+elif is_ppc64le || is_s390x; then
+    echo "No actions defined for $ARCH architecture."
+    exit 0
+else
+    echo "Unsupported architecture"
+    exit 1
+fi
 
 # Retrieve the latest major version of the CodeQL Action to use in the base URL for downloading the bundle.
-releases=$(curl -s ${GITHUB_TOKEN:+-H "Authorization: Bearer ${GITHUB_TOKEN}"} "https://api.github.com/repos/github/codeql-action/releases")
+releases=$(curl -fsSL ${GITHUB_TOKEN:+-H "Authorization: Bearer ${GITHUB_TOKEN}"} "https://api.github.com/repos/github/codeql-action/releases")
 
-# Get the release tags starting with v[0-9] and sort them in descending order, then parse the first one to get the major version.
+# Get the release tags starting with v[0-9] and sort them in descending order, then take the first major version.
 codeql_action_latest_major_version=$(echo "$releases" |
     jq -r '.[].tag_name' |
     grep -E '^v[0-9]' |
+    sed -E 's/^v([0-9]+).*/\1/' |
     sort -nr |
-    head -n 1 |
-    sed -E 's/^v([0-9]+).*/\1/')
+    head -n 1)
 if [ -z "$codeql_action_latest_major_version" ]; then
   echo "Error: Unable to find the latest major version of the CodeQL Action."
   exit 1

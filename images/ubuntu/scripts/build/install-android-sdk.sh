@@ -10,20 +10,10 @@ source "$HELPER_SCRIPTS"/os.sh
 source "$HELPER_SCRIPTS"/install.sh
 source "$HELPER_SCRIPTS"/etc-environment.sh
 
-# Set architecture-specific variables using a case statement for clarity
-case "$ARCH" in
-    "ppc64le" | "s390x")
-        echo "No actions defined for $ARCH architecture."
-        exit 0
-        ;;
-    "x86_64")
-        package_arch="amd64"
-        ;;
-    *)
-        # shellcheck disable=SC2034
-        package_arch="$ARCH"
-        ;;
-esac
+if is_ppc64le || is_s390x; then
+    echo "No actions defined for $ARCH architecture."
+    exit 0
+fi
 
 add_filtered_installation_components() {
     local minimum_version=$1
@@ -32,9 +22,8 @@ add_filtered_installation_components() {
 
     # shellcheck disable=SC2068
     for item in ${tools_array[@]}; do
-        # Take the last argument after splitting string by ';'' and '-''
-        # shellcheck disable=SC2116
-        item_version=$(echo "${item##*[-;]}")
+        # Take the last version number that appears after the last '-' or ';'
+        item_version=$(echo "$item" | grep -oE '[-;][0-9.]+' | grep -oE '[0-9.]+')
 
         # Semver 'comparison'. Add item to components array, if item's version is greater than or equal to minimum version
         # shellcheck disable=SC2059
