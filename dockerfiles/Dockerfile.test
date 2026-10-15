@@ -1,4 +1,6 @@
-FROM    localhost/runner:almalinux
+# Base image built by scripts/docker.sh or scripts/podman.sh: runner:<os>.<version>
+ARG     BASE_IMAGE=runner:ubuntu.26.04
+FROM    ${BASE_IMAGE}
 
 ARG     REPO TOKEN
 
