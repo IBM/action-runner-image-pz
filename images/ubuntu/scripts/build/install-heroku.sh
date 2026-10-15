@@ -6,16 +6,12 @@
 # Source the helpers for use with the script
 # shellcheck disable=SC1091
 source "$HELPER_SCRIPTS"/install.sh
+source "$HELPER_SCRIPTS"/os.sh
 
-# Set architecture-specific variables using a case statement for clarity
-case "$ARCH" in
-    "ppc64le" | "s390x")
-        echo "No actions defined for $ARCH architecture."
-        exit 0
-        ;;
-    *)
-        ;;
-esac
+if is_ppc64le || is_s390x; then
+    echo "No actions defined for $ARCH architecture."
+    exit 0
+fi
 
 REPO_URL="https://cli-assets.heroku.com/channels/stable/apt"
 GPG_KEY="/usr/share/keyrings/heroku.gpg"

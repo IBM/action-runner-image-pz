@@ -7,22 +7,21 @@
 # Source the helpers for use with the script
 # shellcheck disable=SC1091
 source "$HELPER_SCRIPTS"/install.sh
+source "$HELPER_SCRIPTS"/os.sh
 
-# Set architecture-specific variables using a case statement for clarity
-case "$ARCH" in
-    "ppc64le")
-        triplet="powerpc64le-linux-gnu"
-        tar_arch_suffix="linux-ppc64le"
-        ;;
-    "s390x")
-        echo "Julia is not officially available for the s390x architecture."
-        exit 0
-        ;;
-    "x86_64" | *)
-        triplet="$ARCH-linux-gnu"
-        tar_arch_suffix="linux-$ARCH"
-        ;;
-esac
+if is_x64 || is_arm64; then
+    triplet="$ARCH-linux-gnu"
+    tar_arch_suffix="linux-$ARCH"
+elif is_ppc64le; then
+    triplet="powerpc64le-linux-gnu"
+    tar_arch_suffix="linux-ppc64le"
+elif is_s390x; then
+    echo "Julia is not officially available for the s390x architecture."
+    exit 0
+else
+    echo "Unsupported architecture"
+    exit 1
+fi
 
 # get the latest julia version
 json=$(curl -fsSL "https://julialang-s3.julialang.org/bin/versions.json")
