@@ -7,20 +7,24 @@
 # Source the helpers for use with the script
 # shellcheck disable=SC1091
 source "$HELPER_SCRIPTS"/install.sh
+source "$HELPER_SCRIPTS"/etc-environment.sh
+source "$HELPER_SCRIPTS"/os.sh
 
-# Set architecture-specific variables using a case statement for clarity
-case "$ARCH" in
-    "ppc64le" | "s390x")
-        echo "No actions defined for $ARCH architecture."
-        exit 0
-        ;;
-    *)
-        ;;
-esac
+if is_ppc64le || is_s390x; then
+    echo "No actions defined for $ARCH architecture."
+    exit 0
+fi
 
 # Install bazelisk
 npm install -g @bazel/bazelisk
 
-# run bazelisk once in order to install /usr/local/bin/bazel binary
-sudo -u "$SUDO_USER" bazel version
+# Run bazelisk once in order to install /usr/local/bin/bazel binary
+bazel version
+
+# Get the installed Bazel version from bazelisk
+BAZEL_VERSION=$(bazel version | awk '/Build label:/{print $3}')
+
+# Set USE_BAZEL_FALLBACK_VERSION so that users without .bazelversion
+# get the preinstalled version instead of downloading latest
+set_etc_environment_variable "USE_BAZEL_FALLBACK_VERSION" "silent:${BAZEL_VERSION}"
 

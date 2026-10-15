@@ -7,23 +7,22 @@
 # Source the helpers for use with the script
 # shellcheck disable=SC1091
 source "$HELPER_SCRIPTS"/install.sh
+source "$HELPER_SCRIPTS"/os.sh
 
 SRC=$(readlink -f "${BASH_SOURCE[0]}")
 DIR=$(dirname "${SRC}")
 
-# Set architecture-specific variables using a case statement for clarity
-case "$ARCH" in
-    "ppc64le" | "s390x")
-        source "${DIR}/configure-runner.sh"
-        exit 0
-        ;;
-    "x86_64")
-        package_arch="x64"
-        ;;
-    *)
-        package_arch="$ARCH"
-        ;;
-esac
+if is_x64; then
+    package_arch="x64"
+elif is_arm64; then
+    package_arch="arm64"
+elif is_ppc64le || is_s390x; then
+    source "${DIR}/configure-runner.sh"
+    exit 0
+else
+    echo "Unsupported architecture"
+    exit 1
+fi
 
 download_url=$(resolve_github_release_asset_url "actions/runner" "test(\"actions-runner-linux-${package_arch}-[0-9]+\\\\.[0-9]{3}\\\\.[0-9]+\\\\.tar\\\\.gz$\")" "latest")
 archive_name="${download_url##*/}"

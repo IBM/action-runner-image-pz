@@ -8,16 +8,18 @@
 # Source the helpers for use with the script
 # shellcheck disable=SC1091
 source "$HELPER_SCRIPTS"/install.sh
+source "$HELPER_SCRIPTS"/os.sh
 
-# Set architecture-specific variables using a case statement for clarity
-case "$ARCH" in
-    "x86_64")
-        package_arch="amd64"
-        ;;
-    "ppc64le" | "s390x" | *)
-        package_arch="$ARCH"
-        ;;
-esac
+if is_x64; then
+    package_arch="amd64"
+elif is_arm64; then
+    package_arch="arm64"
+elif is_ppc64le || is_s390x; then
+    package_arch="$ARCH"
+else
+    echo "Unsupported architecture"
+    exit 1
+fi
 
 # Determine latest ORAS CLI version
 download_url=$(resolve_github_release_asset_url "oras-project/oras" "endswith(\"linux_${package_arch}.tar.gz\")" "latest")

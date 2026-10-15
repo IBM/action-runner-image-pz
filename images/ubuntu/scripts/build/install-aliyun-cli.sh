@@ -10,19 +10,17 @@
 source "$HELPER_SCRIPTS"/os.sh
 source "$HELPER_SCRIPTS"/install.sh
 
-# Set architecture-specific variables using a case statement for clarity
-case "$ARCH" in
-    "ppc64le" | "s390x")
-        echo "No actions defined for $ARCH architecture."
-        exit 0
-        ;;
-    "x86_64")
-        package_arch="amd64"
-        ;;
-    *)
-        package_arch="$ARCH"
-        ;;
-esac
+if is_x64; then
+    package_arch="amd64"
+elif is_arm64; then
+    package_arch="arm64"
+elif is_ppc64le || is_s390x; then
+    echo "No actions defined for $ARCH architecture."
+    exit 0
+else
+    echo "Unsupported architecture"
+    exit 1
+fi
 
 # Install Alibaba Cloud CLI
     

@@ -28,6 +28,15 @@ if [[ -f /etc/waagent.conf ]]; then
     sed -i 's/ResourceDisk.SwapSizeMB=0/ResourceDisk.SwapSizeMB=4096/g' /etc/waagent.conf
 fi
 
+# Ephemeral-OS VMs have no Azure resource disk, so cloud-init's default /mnt mount waits ~90s
+# at boot for a device that never appears. Cap that wait via cloud-init, which rewrites
+# /etc/fstab on every boot (so a direct fstab edit would not survive).
+mkdir -p /etc/cloud/cloud.cfg.d
+tee /etc/cloud/cloud.cfg.d/99-azure-resource-disk-timeout.cfg > /dev/null <<'EOF'
+mounts:
+  - [ ephemeral0, /mnt, auto, "defaults,nofail,x-systemd.device-timeout=1s,_netdev", "0", "2" ]
+EOF
+
 # Add localhost alias to ::1 IPv6
 sed -i 's/::1 ip6-localhost ip6-loopback/::1     localhost ip6-localhost ip6-loopback/g' /etc/hosts
 
@@ -65,12 +74,22 @@ mkdir -p "$rules_directory"
 touch $netfilter_rule
 echo 'ACTION=="add", SUBSYSTEM=="module", KERNEL=="nf_conntrack", RUN+="/usr/sbin/sysctl net.netfilter.nf_conntrack_tcp_be_liberal=1"' | tee -a $netfilter_rule
 
+# https://github.com/actions/runner-images/issues/13770
+# https://github.com/ravendb/ravendb/discussions/22410
+# Linux kernel 6.17 changed read_ahead_kb default from 128 to 4096 on Azure VMs
+# where disks are presented as rotational (ROTA=1). This floods the page cache
+# with unused data during random-access I/O and causes memory exhaustion and thrashing.
+# Azure v4 VM series use SCSI disks (sd*); v5/v6 use NVMe namespaces (nvme*n*).
+if ! is_ubuntu22; then
+    readahead_rule='/etc/udev/rules.d/99-readahead.rules'
+    echo 'ACTION=="add|change", KERNEL=="sd*|nvme*n*", ATTR{queue/read_ahead_kb}="128"' | tee "$readahead_rule"
+fi
 # Disable motd updates metadata
 if [[ -f /etc/default/motd-news ]]; then
     sed -i 's/ENABLED=1/ENABLED=0/g' /etc/default/motd-news
 fi
 # Remove fwupd if installed. We're running on VMs in Azure and the fwupd package is not needed.
-# Leaving it enable means periodic refreshes show in network traffic and firewall logs
+# Leaving it enabled means periodic refreshes show in network traffic and firewall logs
 # Check if fwupd-refresh.timer exists in systemd
 if systemctl list-unit-files fwupd-refresh.timer &>/dev/null; then
     echo "Masking fwupd-refresh.timer..."
@@ -87,4 +106,10 @@ fi
 # https://github.com/microsoft/azure-pipelines-agent/issues/3834
 if is_ubuntu22; then
     sed -i 's/openssl_conf = openssl_init/#openssl_conf = openssl_init/g' /etc/ssl/openssl.cnf
+fi
+
+# Disable man-db auto update
+if dpkg -s man-db &>/dev/null; then
+    echo "set man-db/auto-update false" | debconf-communicate
+    dpkg-reconfigure -f noninteractive man-db
 fi

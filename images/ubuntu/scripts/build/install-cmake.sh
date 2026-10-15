@@ -8,29 +8,35 @@
 # Source the helpers for use with the script
 # shellcheck disable=SC1091
 source "$HELPER_SCRIPTS"/install.sh
+source "$HELPER_SCRIPTS"/os.sh
+
+if is_x64; then
+	cmake_arch="x86_64"
+elif is_arm64; then
+	cmake_arch="aarch64"
+elif is_ppc64le || is_s390x; then
+	# Kitware publishes no installer for these architectures, use the distro package
+	command -v cmake || install_dpkgs cmake
+	exit 0
+else
+	echo "Unsupported architecture"
+	exit 1
+fi
+
+cmake_version=$(get_toolset_value .cmake.version)
 
 # Test to see if the software in question is already installed, if not install it
 echo "Checking to see if the installer script has already been run"
 if command -v cmake; then
 	echo "cmake is already installed"
 else
-	# Set architecture-specific variables using a case statement for clarity
-	case "$ARCH" in
-		"ppc64le" | "s390x")
-			install_dpkgs cmake
-			exit 0
-			;;
-		*)
-			package_arch="$ARCH"
-			;;
-	esac
 	# Download script to install CMake
-	download_url=$(resolve_github_release_asset_url "Kitware/CMake" "endswith(\"inux-${package_arch}.sh\")" "latest")
+	download_url=$(resolve_github_release_asset_url "Kitware/CMake" "endswith(\"inux-$cmake_arch.sh\")" "$cmake_version")
 	curl -fsSL "${download_url}" -o cmakeinstall.sh
 
 	# Supply chain security - CMake
-	hash_url=$(resolve_github_release_asset_url "Kitware/CMake" "endswith(\"SHA-256.txt\")" "latest")
-	external_hash=$(get_checksum_from_url "$hash_url" "linux-${package_arch}.sh" "SHA256")
+	hash_url=$(resolve_github_release_asset_url "Kitware/CMake" "endswith(\"SHA-256.txt\")" "$cmake_version")
+	external_hash=$(get_checksum_from_url "$hash_url" "linux-$cmake_arch.sh" "SHA256")
 	use_checksum_comparison "cmakeinstall.sh" "$external_hash"
 
 	# Install CMake and remove the install script
