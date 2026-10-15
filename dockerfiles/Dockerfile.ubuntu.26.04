@@ -1,0 +1,59 @@
+FROM    ubuntu:26.04
+
+ARG     RUNNERREPO="https://github.com/actions/runner"
+ARG     RUNNERPATCH
+ARG     SDK=8
+ARG     ARCH
+
+ENV     DEBIAN_FRONTEND=noninteractive
+
+COPY    ../scripts/assets/99synaptics /etc/apt/apt.conf.d/
+
+COPY    ../scripts/assets/01-nodoc /etc/dpkg/dpkg.cfg.d/
+
+# .NET 8 is not in the Ubuntu 26.04 archive; Canonical publishes it in ppa:dotnet/backports
+RUN     apt-get -qq update -y && \
+        apt-get -qq -y install --no-install-recommends \
+            software-properties-common && \
+        add-apt-repository -y ppa:dotnet/backports && \
+        apt-get -qq update -y && \
+        apt-get -qq -y install --no-install-recommends \
+            wget git sudo curl dotnet-sdk-${SDK}.0 \
+            cmake make automake autoconf m4 gcc-12-base libtool && \
+        apt-get autoclean && \
+        rm -rf /var/lib/apt/lists/*
+
+RUN     echo "Using SDK - $(dotnet --version)"
+
+ADD     ${RUNNERPATCH} /tmp/runner.patch
+
+RUN     cd /tmp && \
+        git clone --tags -q ${RUNNERREPO} && \
+        cd runner && \
+        git checkout $(git tag --sort=-v:refname | grep '^v[0-9]' | head -n1) && \
+        git apply --whitespace=nowarn /tmp/runner.patch && \
+        sed -i'' -e /version/s/8......\"$/8.0.100\"/ src/global.json
+
+RUN     cd /tmp/runner/src && \
+        ./dev.sh layout Release && \
+        ./dev.sh package Release && \
+        ./dev.sh test && \
+        rm -rf /root/.dotnet /root/.nuget
+
+RUN     useradd -c 'Action Runner' -m -s /bin/bash runner && \
+        usermod -L runner && \
+        echo 'runner ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/runner && \
+        chmod 440 /etc/sudoers.d/runner
+
+RUN     mkdir -p /opt/runner-cache && \
+        tar -xf /tmp/runner/_package/*.tar.gz -C /opt/runner-cache && \
+        chown -R runner:runner /opt/runner-cache && \
+        sudo -u runner /opt/runner-cache/config.sh --version
+
+RUN     rm -rf /tmp/runner /tmp/runner.patch
+
+USER    runner
+
+EXPOSE  443
+
+CMD     ["/bin/bash"]
