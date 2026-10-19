@@ -66,10 +66,14 @@ getent group incus-admin >/dev/null || groupadd --system incus-admin
 usermod -aG incus,incus-admin root
 
 echo "[INFO] Configuring idmap..."
+# Every container gets root's whole range. 65536 IDs leaves none for rootless
+# podman (runner:100000:65536) inside a job, so match the production hosts
+# (actions-deploy tasks/incus_idmap.yml). incusd reads these only at start-up.
+INCUS_IDMAP="${INCUS_IDMAP:-1000000:1000000000}"
 sed -i '/^root:/d' /etc/subuid
-echo "root:100000:65536" >> /etc/subuid
+echo "root:${INCUS_IDMAP}" >> /etc/subuid
 sed -i '/^root:/d' /etc/subgid
-echo "root:100000:65536" >> /etc/subgid
+echo "root:${INCUS_IDMAP}" >> /etc/subgid
 echo "[INFO] subuid: $(grep ^root /etc/subuid)"
 echo "[INFO] subgid: $(grep ^root /etc/subgid)"
 

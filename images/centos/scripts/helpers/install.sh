@@ -6,7 +6,7 @@
 
 download_with_retry() {
     local url=$1
-    local download_path=$2
+    local download_path=${2:-}
 
     if [ -z "$download_path" ]; then
         download_path="/tmp/$(basename "$url")"

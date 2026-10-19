@@ -245,8 +245,10 @@ EOF
     usermod -aG adm,users,systemd-journal runner
     # Add to docker group if it exists
     getent group docker >/dev/null && usermod -aG docker runner || true
-    # Add to incus group if it exists
-    getent group incus >/dev/null && usermod -aG incus runner || true
+    # Add to incus-admin group if it exists (incusd socket is root:incus-admin)
+    getent group incus-admin >/dev/null && usermod -aG incus-admin runner || true
+    # Add to lxd group if it exists (snap LXD socket is root:lxd 0660)
+    getent group lxd >/dev/null && usermod -aG lxd runner || true
   "
   
   msg "Running post-generation scripts (as root)"
