@@ -27,23 +27,15 @@ jobs:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v5
 
-      # Runs a single command using the runners shell
-      - name: Cloning repo and Patching runner
+      # Latest release + release patch; falls back to main + main patch if that fails to patch or build
+      - name: Cloning, patching and building runner
         run: |
-          mkdir -p /var/tmp/imagegeneration/
-          cp patches/runner-sdk8-$(uname -m).patch /var/tmp/imagegeneration/runner-sdk-8.patch
-          cd /tmp
-          git clone --tags -q https://github.com/actions/runner.git
-          cd runner
-          git checkout $(git tag --sort=-v:refname | grep '^v[0-9]' | head -n1)
-          git apply --whitespace=nowarn /var/tmp/imagegeneration/runner-sdk-8.patch
-          sed -i'' -e '/version/s/8......"$/8.0.100"/' src/global.json
+          sudo bash scripts/helpers/build-runner.sh https://github.com/actions/runner.git \
+            patches/runner-sdk8-$(uname -m).patch patches/runner-main-sdk8-$(uname -m).patch
 
-      - name: Building runner binary
+      - name: Testing runner binary
         run: |
           cd /tmp/runner/src
-          sudo ./dev.sh layout Release
-          sudo ./dev.sh package Release
           sudo ./dev.sh test
 
       - name: Installing runner

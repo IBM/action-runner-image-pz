@@ -39,27 +39,13 @@ check_idempotency() {
     fi
 }
 
-patch_runner() {
-    header "Cloning repo and Patching runner"
-    cd /tmp
-    git clone --tags -q "${RUNNERREPO}"
-    cd runner
-    # shellcheck disable=SC2046
-    git checkout $(git tag --sort=-v:refname | grep '^v[0-9]' | head -n1)
-    git apply --whitespace=nowarn "${IMAGE_FOLDER}"/runner-sdk-8.patch
-    sed -i'' -e '/version/s/8......"$/8.0.100"/' src/global.json
-}
-
 build_runner() {
     export DOTNET_NUGET_SIGNATURE_VERIFICATION=false
-    header "Building runner binary"
-    cd src
-
-    msg "Running dev layout"
-    ./dev.sh layout Release
-
-    msg "Creating package"
-    ./dev.sh package Release
+    header "Cloning, patching and building runner"
+    # Latest release + release patch; falls back to main + main patch if that fails to patch or build
+    bash "${HELPER_SCRIPTS}"/build-runner.sh "${RUNNERREPO}" \
+        "${IMAGE_FOLDER}"/runner-sdk-8.patch "${IMAGE_FOLDER}"/runner-main-sdk-8.patch
+    cd /tmp/runner/src
 
     msg "Running tests"
     ./dev.sh test
@@ -76,7 +62,7 @@ pre_cleanup() {
 }
 
 post_cleanup() {
-    sudo rm -rf "${IMAGE_FOLDER}"/runner-sdk-8.patch \
+    sudo rm -rf "${IMAGE_FOLDER}"/runner-sdk-8.patch "${IMAGE_FOLDER}"/runner-main-sdk-8.patch \
            /tmp/preseed-yaml /home/ubuntu/.nuget \
            /home/runner/.local/share
 }
@@ -84,7 +70,6 @@ post_cleanup() {
 run() {
     check_idempotency
     pre_cleanup
-    patch_runner
     build_runner
     install_runner
     post_cleanup

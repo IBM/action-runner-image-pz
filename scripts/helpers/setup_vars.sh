@@ -56,6 +56,8 @@ USE_CLOUD_IMG=true
 USE_INCUS_IMG=false
 ARCH=${ARCH:-$(uname -m)}
 PATCH_FILE="${PATCH_FILE:-runner-sdk8-${ARCH}.patch}"
+# Fallback used when the latest release fails to patch or build
+MAIN_PATCH_FILE="${MAIN_PATCH_FILE:-runner-main-sdk8-${ARCH}.patch}"
 
 # Parse Arguments ---
 # We use a temporary array to store non-flag arguments to avoid clobbering 

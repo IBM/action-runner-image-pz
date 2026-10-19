@@ -18,6 +18,7 @@ sudo cp -r "${IMGDIR}"/scripts/helpers/. "${helper_script_folder}"
 sudo cp -r "${CURRENT_DIR}"/. "${helper_script_folder}"
 sudo cp -r "${CURRENT_DIR}"/../assets/. "${installer_script_folder}"
 sudo cp "${CURRENT_DIR}"/../../patches/"${PATCH_FILE}" "${image_folder}/runner-sdk-8.patch"
+sudo cp "${CURRENT_DIR}"/../../patches/"${MAIN_PATCH_FILE}" "${image_folder}/runner-main-sdk-8.patch"
 # shellcheck disable=SC2154
 sudo cp "${IMGDIR}"/toolsets/"${toolset_file_name}" "${installer_script_folder}/toolset.json"
 sudo cp -r "${IMGDIR}"/scripts/build/. "${installer_script_folder}"

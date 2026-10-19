@@ -3,6 +3,7 @@ FROM    almalinux:9
 
 ARG     RUNNERREPO="https://github.com/actions/runner" 
 ARG     RUNNERPATCH
+ARG     RUNNERMAINPATCH
 ARG     SDK=8
 ARG     ARCH
 
@@ -19,16 +20,14 @@ RUN     echo "Using SDK - $(dotnet --version)"
 
 ADD    ${RUNNERPATCH} /tmp/runner.patch
 
-RUN     cd /tmp && \
-        git clone --tags -q ${RUNNERREPO} && \
-        cd runner && \
-        git checkout $(git tag --sort=-v:refname | grep '^v[0-9]' | head -n1) && \
-        git apply --whitespace=nowarn /tmp/runner.patch && \
-        sed -i'' -e /version/s/8......\"$/8.0.100\"/ src/global.json
+ADD     ${RUNNERMAINPATCH} /tmp/runner-main.patch
+
+COPY    ../scripts/helpers/build-runner.sh /tmp/
+
+# Latest release + release patch; falls back to main + main patch if that fails to patch or build
+RUN     bash /tmp/build-runner.sh ${RUNNERREPO} /tmp/runner.patch /tmp/runner-main.patch
 
 RUN     cd /tmp/runner/src && \
-        ./dev.sh layout Release && \
-        ./dev.sh package Release && \
         ./dev.sh test && \
         rm -rf /root/.dotnet /root/.nuget
 
@@ -42,7 +41,7 @@ RUN     mkdir -p /opt/runner-cache && \
         chown -R runner:runner /opt/runner-cache && \
         sudo -u runner /opt/runner-cache/config.sh --version
 
-RUN     rm -rf /tmp/runner /tmp/runner.patch
+RUN     rm -rf /tmp/runner /tmp/runner.patch /tmp/runner-main.patch /tmp/build-runner.sh
 
 USER    runner
 
