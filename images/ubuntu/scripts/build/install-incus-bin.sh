@@ -44,6 +44,16 @@ if [ "${BUILD_INCUS:-false}" = "true" ]; then
     fi
 
     cd incus || exit 1
+
+    # Distro golang (1.18 on 22.04, 1.22 on 24.04) is older than go.mod requires;
+    # fetch the exact toolchain go.mod names.
+    GO_VERSION=$(awk '/^go /{print $2; exit}' go.mod)
+    [[ "$GO_VERSION" =~ ^[0-9]+\.[0-9]+$ ]] && GO_VERSION="${GO_VERSION}.0"
+    case "$ARCH" in x86_64) GO_ARCH=amd64 ;; *) GO_ARCH="$ARCH" ;; esac
+    GO_ARCHIVE=$(download_with_retry "https://go.dev/dl/go${GO_VERSION}.linux-${GO_ARCH}.tar.gz")
+    rm -rf /tmp/go && tar -C /tmp -xzf "$GO_ARCHIVE" && rm -f "$GO_ARCHIVE"
+    export PATH="/tmp/go/bin:${PATH}"
+
     make
 
     GOBIN="$(go env GOPATH)/bin"
@@ -54,6 +64,7 @@ if [ "${BUILD_INCUS:-false}" = "true" ]; then
     install -m 755 "${GOBIN}/incusd" /usr/local/bin/
     install -m 755 "${GOBIN}/incus-agent" /usr/local/bin/
     install -m 755 "${GOBIN}/incus-migrate" /usr/local/bin/
+    go clean -modcache
 
     echo "[INFO] Incus installed successfully"
 fi
@@ -66,10 +77,14 @@ getent group incus-admin >/dev/null || groupadd --system incus-admin
 usermod -aG incus,incus-admin root
 
 echo "[INFO] Configuring idmap..."
+# Every container gets root's whole range. 65536 IDs leaves none for rootless
+# podman (runner:100000:65536) inside a job, so match the production hosts
+# (actions-deploy tasks/incus_idmap.yml). incusd reads these only at start-up.
+INCUS_IDMAP="${INCUS_IDMAP:-1000000:1000000000}"
 sed -i '/^root:/d' /etc/subuid
-echo "root:100000:65536" >> /etc/subuid
+echo "root:${INCUS_IDMAP}" >> /etc/subuid
 sed -i '/^root:/d' /etc/subgid
-echo "root:100000:65536" >> /etc/subgid
+echo "root:${INCUS_IDMAP}" >> /etc/subgid
 echo "[INFO] subuid: $(grep ^root /etc/subuid)"
 echo "[INFO] subgid: $(grep ^root /etc/subgid)"
 

@@ -22,7 +22,7 @@ SCRIPT_HELPER_SCRIPTS="${SCRIPT_DIR}/../helpers"
 source "$SCRIPT_HELPER_SCRIPTS"/install.sh
 
 ARCH="${ARCH:-$(uname -m)}"
-CONFIG_FILE="${REPO_ROOT}/scripts/assets/incus_init_host_${ARCH}.yml"
+CONFIG_FILE="${CONFIG_FILE:-${REPO_ROOT}/scripts/assets/incus_init_host_${ARCH}.yml}"
 
 # Version configuration (can be overridden via environment variables)
 RAFT_VERSION="${RAFT_VERSION:-v0.22.1}"
@@ -71,7 +71,6 @@ install_dpkgs \
     gcc \
     g++ \
     make \
-    golang \
     wget \
     lvm2 \
     thin-provisioning-tools \
@@ -83,7 +82,7 @@ install_dpkgs \
     uuid-dev \
     lxc \
     lxc-dev \
-    dnsmasq \
+    dnsmasq-base \
     squashfs-tools \
     autoconf \
     automake \
@@ -168,6 +167,32 @@ else
         exit 1
     fi
 fi
+
+# The nohup daemon above does not survive a reboot or an image publish;
+# enable (not start) a unit so incusd comes up on next boot.
+cat > /etc/systemd/system/incus.service << 'EOF'
+[Unit]
+Description=Incus daemon
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/local/bin/incusd --group incus-admin
+ExecStartPost=/usr/local/bin/incus admin waitready --timeout=600
+KillMode=process
+TimeoutStartSec=600s
+TimeoutStopSec=30s
+Restart=on-failure
+Delegate=yes
+LimitNOFILE=1048576
+LimitNPROC=infinity
+TasksMax=infinity
+
+[Install]
+WantedBy=multi-user.target
+EOF
+systemctl daemon-reload
+systemctl enable incus.service
 
 fi # end SKIP_INCUS_BUILD
 
