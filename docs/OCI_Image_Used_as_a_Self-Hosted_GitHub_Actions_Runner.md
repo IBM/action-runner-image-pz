@@ -32,7 +32,7 @@ sudo ./scripts/podman.sh <os> <version>
 | `ubuntu` | `22.04`, `24.04`, `26.04` | `dockerfiles/Dockerfile.ubuntu.<version>` |
 | `centos` | `9` | `dockerfiles/Dockerfile.centos.9` |
 
-The image is tagged `runner:<os>.<version>`, for example `runner:ubuntu.26.04` (Podman shows it as `localhost/runner:ubuntu.26.04`). It contains the GitHub Actions runner, built from source for the host architecture with `patches/runner-sdk8-<arch>.patch`, installed in `/opt/runner-cache` and owned by the `runner` user. OCI images always use the minimal setup: the runner plus the tools needed to build it (git, curl, sudo, the .NET 8 SDK and compilers).
+The image is tagged `runner:<os>.<version>`, for example `runner:ubuntu.26.04` (Podman shows it as `localhost/runner:ubuntu.26.04`). It contains the GitHub Actions runner, built from source for the host architecture: the latest release with `patches/runner-sdk8-<arch>.patch`, or upstream main with `patches/runner-main-sdk8-<arch>.patch` if the release fails to patch or build (test failures do not trigger this fallback). It is installed in `/opt/runner-cache` and owned by the `runner` user. OCI images always use the minimal setup: the runner plus the tools needed to build it (git, curl, sudo, the .NET 8 SDK and compilers).
 
 ---
 
