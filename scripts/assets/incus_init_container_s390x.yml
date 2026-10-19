@@ -4,6 +4,9 @@ networks:
 - config:
     bridge.mtu: "1460"
     ipv4.address: auto
+    # Nested in an unprivileged container: the kernel rejects the
+    # "udp checksum set 0" rule Incus adds with the IPv4 firewall (EPERM).
+    ipv4.firewall: "false"
     ipv6.address: auto
   description: "Incus network for s390x"
   name: incusbr0
@@ -22,8 +25,7 @@ profiles:
   devices:
     eth0:
       name: eth0
-      nictype: bridged
-      parent: incusbr0
+      network: incusbr0
       type: nic
     root:
       path: /

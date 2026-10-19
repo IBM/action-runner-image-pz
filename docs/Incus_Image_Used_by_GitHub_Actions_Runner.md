@@ -22,8 +22,10 @@ Supported: Ubuntu **22.04**, **24.04** and **26.04** images on **ppc64le**, **s3
    | `USE_LVM` | `true` | Create an LVM storage pool on a loop file |
    | `LVM_LOOP_SIZE` | `200G` | Size of the loop file (`/var/lib/incus/disks/incus-lvm.img`) |
    | `LVM_VG_NAME` | `vg_incus` | LVM volume group name |
+   | `CONFIG_FILE` | `scripts/assets/incus_init_host_<arch>.yml` | Preseed file passed to `incus admin init` |
+   | `INCUS_IDMAP` | `1000000:1000000000` | root's `/etc/subuid` and `/etc/subgid` range (`base:size`); every container is mapped onto all of it. Images get `1000000:999000000` so the nested range fits inside the job container |
 
-   Pass `--skip-snap-incus` to skip the installer when you manage Incus yourself; Incus must then already be installed and running.
+   Pass `--skip-snap-incus` to skip the installer when you manage Incus yourself; Incus must then already be installed and running. The same flag also skips installing Incus inside the image.
 
 2. Run the scripts from the repository root with `sudo`.
 
@@ -83,7 +85,7 @@ The published image is tagged with the build commit, OS, version, setup type and
 |---|---|
 | `--use-cloud-img` | Use the Ubuntu cloud image as base image (default) |
 | `--use-incus-img` | Use the Incus image server / distrobuilder as base image |
-| `--skip-snap-incus` | Do not run the Incus installer on the host |
+| `--skip-snap-incus` | Do not run the Incus installer on the host, nor install Incus *inside* the image |
 | `--skip-incus-base-img` | (VM only) Do not build/import the base image; use the existing `ubuntu-<version>-vm` |
 | `--incus-debug` | Keep the build instance after the build (non-ephemeral) for inspection |
 | `--skip-snap-lxd` | Do not install snapd/LXD and `configure-snap.sh` *inside* the image |

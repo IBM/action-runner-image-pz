@@ -46,4 +46,4 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: | 
-          scripts/lxd_container.sh "${{ matrix.os }}" "${{ matrix.version }}" "" "" "${{ matrix.setup_type }}" --skip-snap-lxd --skip-lxd-snapshot 
+          scripts/lxd_container.sh "${{ matrix.os }}" "${{ matrix.version }}" "" "" "${{ matrix.setup_type }}" --skip-snap-lxd --skip-snap-incus --skip-lxd-snapshot 

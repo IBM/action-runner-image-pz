@@ -265,6 +265,19 @@ if [ "${SKIP_SNAP_LXD:-false}" != "true" ]; then
     run_script "${INSTALLER_SCRIPT_FOLDER}/configure-snap.sh" "HELPER_SCRIPTS" "ARCH"
 fi
 
+# Install and configure Incus unless skipped (dir storage, no LVM, in-image preseed)
+if [[ "$IMAGE_OS" == *"ubuntu"* ]] && [ "${SKIP_SNAP_INCUS:-false}" != "true" ]; then
+    # shellcheck disable=SC2034
+    USE_LVM=false
+    # shellcheck disable=SC2034
+    CONFIG_FILE="${INSTALLER_SCRIPT_FOLDER}/incus_init_container_${ARCH}.yml"
+    # Hosts map jobs to 0 1000000 1000000000, so a job only has IDs 0-999999999.
+    # The nested range must fit inside that: 1000000 + 999000000 = 1000000000.
+    # shellcheck disable=SC2034
+    INCUS_IDMAP="1000000:999000000"
+    run_script "${INSTALLER_SCRIPT_FOLDER}/install-incus.sh" "HELPER_SCRIPTS" "INSTALLER_SCRIPT_FOLDER" "ARCH" "USE_LVM" "CONFIG_FILE" "INCUS_IDMAP"
+fi
+
 run_script "${INSTALLER_SCRIPT_FOLDER}/install-docker.sh" "HELPER_SCRIPTS" "INSTALLER_SCRIPT_FOLDER" "ARCH"
     
 run_script "${INSTALLER_SCRIPT_FOLDER}/install-pipx-packages.sh" "HELPER_SCRIPTS" "INSTALLER_SCRIPT_FOLDER" "ARCH"

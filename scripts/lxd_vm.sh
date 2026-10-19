@@ -436,7 +436,7 @@ build_image() {
   lxc exec "${BUILD_VM}" --user 0 --group 0 -- bash -c "useradd -c 'Action Runner' -m -s /bin/bash runner && usermod -L runner && echo 'runner ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/runner && chmod 440 /etc/sudoers.d/runner"
 
   msg "Adding runner user to required groups"
-  lxc exec "${BUILD_VM}" --user 0 --group 0 -- bash -c "usermod -aG adm,users,systemd-journal,docker,lxd runner"
+  lxc exec "${BUILD_VM}" --user 0 --group 0 -- bash -c "usermod -aG adm,users,systemd-journal,docker,lxd runner && { getent group incus-admin >/dev/null && usermod -aG incus-admin runner || true; }"
   
   msg "Running post-generation scripts (as root)"
   lxc exec "${BUILD_VM}" --user 0 --group 0 -- bash -c "find /opt/post-generation -mindepth 1 -maxdepth 1 -type f -name '*.sh' -exec bash {} \;"
