@@ -32,8 +32,8 @@ usage() {
     echo "  --use-incus-img         Use Incus/distrobuilder minimal images"
     echo "  -h, --help              Show this help"
     echo ""
-    # Use return 1 instead of exit 1 because this script is sourced
-    return 1
+    # usage only prints; callers decide the exit code (exit 0 for --help, exit 1 on errors).
+    # A non-zero return here would trip 'set -e' and make --help exit 1.
 }
 
 # Initialize Defaults ---
