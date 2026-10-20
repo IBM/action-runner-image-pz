@@ -375,9 +375,14 @@ build_distrobuilder_ubuntu_image() {
     fi
     
     # Mirror selection: try the FAU mirror first (faster, reliable),
-    # fall back to the official Ubuntu ports mirror if it fails.
+    # fall back to the official Ubuntu mirror if it fails.
+    # ubuntu-ports carries only non-x86 architectures, so x86_64 (amd64) uses the main archive.
     local PRIMARY_MIRROR="https://ftp.fau.de/ubuntu-ports"
     local FALLBACK_MIRROR="https://ports.ubuntu.com/ubuntu-ports"
+    if [[ "$ARCH" == "x86_64" ]]; then
+        PRIMARY_MIRROR="https://ftp.fau.de/ubuntu"
+        FALLBACK_MIRROR="http://archive.ubuntu.com/ubuntu"
+    fi
     local SOURCE_URL="$PRIMARY_MIRROR"
 
     log_info "Checking primary mirror: ${PRIMARY_MIRROR}..."
