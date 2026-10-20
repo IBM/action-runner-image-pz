@@ -40,7 +40,7 @@ get_image_source_tag() {
 
 set_image_source_tag() {
     local alias="$1" source="$2"
-    incus image set-property "$alias" user.image-source "${source}"
+    incus image set-property "$alias" user.image-source="${source}"
 }
 
 check_or_replace_image() {
