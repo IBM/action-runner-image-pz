@@ -25,12 +25,13 @@ fi
 FIREFOX_REPO="ppa:mozillateam/ppa"
 
 # Install Firefox
-add-apt-repository $FIREFOX_REPO -y
+# -n: the apt mock propagates apt-get update failures; update_dpkgs below tolerates them
+add-apt-repository -n $FIREFOX_REPO -y
 update_dpkgs
 install_dpkgs --target-release='o=LP-PPA-mozillateam' firefox
 
 # Remove source repos
-add-apt-repository --remove -y $FIREFOX_REPO
+add-apt-repository --remove -n -y $FIREFOX_REPO
 
 # Document apt source repos
 echo "mozillateam $FIREFOX_REPO" >> "$HELPER_SCRIPTS"/apt-sources.txt

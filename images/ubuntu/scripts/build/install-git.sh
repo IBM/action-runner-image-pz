@@ -24,7 +24,8 @@ update_git_ppa_sources() {
 }
 
 ## Install git
-add-apt-repository $GIT_REPO -y
+# -n: the apt mock propagates apt-get update failures; update_dpkgs below tolerates them
+add-apt-repository -n $GIT_REPO -y
 
 # Launchpad advertises an amd64v3 index for this PPA that contains no git (LP#2127888)
 if is_ubuntu26_x64; then
@@ -49,7 +50,7 @@ if is_ubuntu26_x64; then
 fi
 
 # Remove source repos
-add-apt-repository --remove -y $GIT_REPO
+add-apt-repository --remove -n -y $GIT_REPO
 
 # Document apt source repos
 echo "git-core $GIT_REPO" >> "$HELPER_SCRIPTS"/apt-sources.txt

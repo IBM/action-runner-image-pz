@@ -74,8 +74,11 @@ Acquire::https::No-Cache true;
 Acquire::BrokenProxy    true;
 EOF
 
-# Uninstall unattended-upgrades
-apt-get purge unattended-upgrades
+# Uninstall unattended-upgrades. Minimal base images may not ship it, and with empty package
+# lists apt-get would fail with "Unable to locate package"
+if dpkg -s unattended-upgrades >/dev/null 2>&1; then
+    apt-get purge unattended-upgrades
+fi
 
 echo 'APT sources'
 # Support both deb822 format (ubuntu.sources) and classic format (sources.list)

@@ -46,13 +46,34 @@ if is_ppc64le || is_s390x; then
     # Canonical splits the toolset versions between the Ubuntu archive and ppa:dotnet/backports
     # (9.0 is PPA-only on every release), so the PPA is always needed. It stays configured so the
     # .NET 8 runtime the self-built runner depends on keeps receiving updates.
-    add-apt-repository -y ppa:dotnet/backports
+    # add-apt-repository queries the Launchpad API, which also fails intermittently (SSL EOF/503).
+    # -n skips its own apt-get update so only the Launchpad lookup is retried; update_dpkgs refreshes.
+    for attempt in 1 2 3; do
+        add-apt-repository -n -y ppa:dotnet/backports && break
+        if [ "$attempt" -eq 3 ]; then
+            echo "Failed to add ppa:dotnet/backports after $attempt attempts"
+            exit 1
+        fi
+        echo "add-apt-repository failed (attempt $attempt/3), retrying in 15 seconds..."
+        sleep 15
+    done
     update_dpkgs
     echo "dotnet-backports ppa:dotnet/backports" >> "$HELPER_SCRIPTS"/apt-sources.txt
-    # apt-get, not install_dpkgs, so a failed install stops the build
+    # apt-get, not install_dpkgs, so a failed install stops the build. The PPA intermittently
+    # returns 503/timeouts, so retry before failing.
     # shellcheck disable=SC2068
     for version in ${dotnet_versions[@]}; do
-        apt-get install -y "dotnet-sdk-${version}"
+        for attempt in 1 2 3; do
+            apt-get install -y "dotnet-sdk-${version}" && break
+            if [ "$attempt" -eq 3 ]; then
+                echo "Failed to install dotnet-sdk-${version} after $attempt attempts"
+                exit 1
+            fi
+            echo "dotnet-sdk-${version} install failed (attempt $attempt/3), retrying in 15 seconds..."
+            sleep 15
+            # the PPA may have replaced the package the failed attempt requested
+            update_dpkgs
+        done
     done
 else
     # Install .NET SDKs and Runtimes

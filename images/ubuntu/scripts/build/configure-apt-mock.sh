@@ -8,6 +8,8 @@
 prefix=/usr/local/bin
 
 for real_tool in /usr/bin/apt /usr/bin/apt-get /usr/bin/apt-key; do
+    # apt 3.x (Ubuntu 26.04) ships no apt-key; a wrapper for it would exit 127
+    [ -x "$real_tool" ] || continue
     tool=$(basename $real_tool)
     cat >$prefix/"$tool" <<EOT
 #!/bin/sh
@@ -16,9 +18,13 @@ i=1
 while [ \$i -le 30 ];do
   err=\$(mktemp)
   $real_tool "\$@" 2>\$err
+  rc=\$?
 
-  # no errors, break the loop and continue normal flow
-  test -f \$err || break
+  # no errors, break the loop and continue normal flow (-s: mktemp always creates the file)
+  if [ ! -s \$err ]; then
+    rm \$err
+    break
+  fi
   cat \$err >&2
 
   retry=false
@@ -58,6 +64,8 @@ while [ \$i -le 30 ];do
   echo "...retry \$i"
   i=\$((i + 1))
 done
+# propagate the real tool's exit status; without this a failed apt-get looks successful
+exit \$rc
 EOT
     chmod +x $prefix/"$tool"
 done
