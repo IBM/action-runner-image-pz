@@ -29,13 +29,33 @@ jobs:
       matrix:
         include:
           - os: "ubuntu"
+            version: "22.04"
+            runner_name: "ubuntu-22.04-ppc64le"
+            runner_owner: "ppc64le-hosted"
+            setup_type: "complete"
+          - os: "ubuntu"
             version: "24.04"
             runner_name: "ubuntu-24.04-ppc64le"
             runner_owner: "ppc64le-hosted"
             setup_type: "complete"
           - os: "ubuntu"
+            version: "26.04"
+            runner_name: "ubuntu-26.04-ppc64le"
+            runner_owner: "ppc64le-hosted"
+            setup_type: "complete"
+          - os: "ubuntu"
+            version: "22.04"
+            runner_name: "ubuntu-22.04-s390x"
+            runner_owner: "s390x-hosted"
+            setup_type: "complete"
+          - os: "ubuntu"
             version: "24.04"
             runner_name: "ubuntu-24.04-s390x"
+            runner_owner: "s390x-hosted"
+            setup_type: "complete"
+          - os: "ubuntu"
+            version: "26.04"
+            runner_name: "ubuntu-26.04-s390x"
             runner_owner: "s390x-hosted"
             setup_type: "complete"
     steps:
@@ -46,4 +66,4 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: | 
-          scripts/lxd_container.sh "${{ matrix.os }}" "${{ matrix.version }}" "" "" "${{ matrix.setup_type }}" --skip-snap-lxd --skip-snap-incus --skip-lxd-snapshot 
+          scripts/incus_container.sh "${{ matrix.os }}" "${{ matrix.version }}" "" "" "${{ matrix.setup_type }}" --use-cloud-img --skip-snap-lxd --skip-snap-incus --skip-incus-snapshot 
