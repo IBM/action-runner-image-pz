@@ -18,9 +18,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-24.04-ppc64le
+          - os: ubuntu-26.04-ppc64le
             runner_owner: "ppc64le-hosted"
-          - os: ubuntu-24.04-s390x
+          - os: ubuntu-26.04-s390x
             runner_owner: "s390x-hosted"
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
