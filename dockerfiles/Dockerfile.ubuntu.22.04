@@ -3,7 +3,6 @@ FROM    ubuntu:22.04
 ARG     RUNNERREPO="https://github.com/actions/runner"
 ARG     RUNNERPATCH
 ARG     RUNNERMAINPATCH
-ARG     SDK=8
 ARG     ARCH
 
 ENV     DEBIAN_FRONTEND=noninteractive
@@ -12,14 +11,21 @@ COPY    ../scripts/assets/99synaptics /etc/apt/apt.conf.d/
 
 COPY    ../scripts/assets/01-nodoc /etc/dpkg/dpkg.cfg.d/
 
+# Both SDKs: the latest release and upstream main may target different .NET majors;
+# build-runner.sh pins the one each ref needs.
+# .NET 10 is not in the Ubuntu 22.04 archive; Canonical publishes it in ppa:dotnet/backports
 RUN     apt-get -qq update -y && \
         apt-get -qq -y install --no-install-recommends \
-            wget git sudo curl dotnet-sdk-${SDK}.0 \
+            software-properties-common && \
+        add-apt-repository -y ppa:dotnet/backports && \
+        apt-get -qq update -y && \
+        apt-get -qq -y install --no-install-recommends \
+            wget git sudo curl dotnet-sdk-8.0 dotnet-sdk-10.0 \
             cmake make automake autoconf m4 gcc-12-base libtool && \
         apt-get autoclean && \
         rm -rf /var/lib/apt/lists/*
 
-RUN     echo "Using SDK - $(dotnet --version)"
+RUN     dotnet --list-sdks
 
 ADD     ${RUNNERPATCH} /tmp/runner.patch
 

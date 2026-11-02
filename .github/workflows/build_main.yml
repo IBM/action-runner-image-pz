@@ -14,14 +14,15 @@ jobs:
   build:
     # The type of runner that the job will run on
     runs-on: ${{ matrix.os }}
+    # The .NET 10 canary is an early warning; it must not fail the workflow
+    continue-on-error: ${{ matrix.sdk != 'upstream' }}
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: ubuntu-26.04-ppc64le
-            runner_owner: "ppc64le-hosted"
-          - os: ubuntu-26.04-s390x
-            runner_owner: "s390x-hosted"
+        os: [ubuntu-26.04-ppc64le, ubuntu-26.04-s390x]
+        # upstream: the SDK actions/runner main targets. 10: .NET 10 canary that retargets main to
+        # net10.0 ahead of upstream; once upstream is on .NET 10 both cells build the same thing.
+        sdk: [upstream, 10]
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
@@ -30,13 +31,21 @@ jobs:
       # Runs a single command using the runners shell
       - name: Cloning repo and Patching runner
         run: |
-          mkdir -p /var/tmp/imagegeneration/
-          cp patches/runner-main-sdk8-$(uname -m).patch /var/tmp/imagegeneration/runner-sdk-8.patch
           cd /tmp
           git clone --branch main --depth 2 https://github.com/actions/runner.git
           cd runner
-          git apply --whitespace=nowarn /var/tmp/imagegeneration/runner-sdk-8.patch
-          sed -i'' -e '/version/s/8......"$/8.0.100"/' src/global.json
+          git apply --whitespace=nowarn "$GITHUB_WORKSPACE/patches/runner-main-sdk8-$(uname -m).patch"
+          sdk=$(sed -n 's/.*"version": *"\([0-9]*\)\..*/\1/p' src/global.json)
+          if [ "${{ matrix.sdk }}" != upstream ]; then
+            sdk=${{ matrix.sdk }}
+            sed -i -E "s|<TargetFramework>net[0-9.]+</TargetFramework>|<TargetFramework>net${sdk}.0</TargetFramework>|" src/*/*.csproj
+            # Upstream's own migration has to clear new SDK warnings (e.g. NU1510 package pruning);
+            # keep them as warnings so the canary only fails on what breaks ppc64le/s390x
+            sed -i 's|<TreatWarningsAsErrors>true<|<TreatWarningsAsErrors>false<|' src/Directory.Build.props
+          fi
+          # Same pin as scripts/helpers/build-runner.sh: distro SDKs are x.0.1xx, and the SDK major
+          # must match the target framework (NU1101 on ppc64le/s390x otherwise)
+          printf '{"sdk":{"version":"%s.0.100","rollForward":"latestFeature"}}\n' "$sdk" > src/global.json
 
       - name: Building runner binary
         run: |

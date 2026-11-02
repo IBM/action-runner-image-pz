@@ -220,9 +220,9 @@ A **Complete** setup runs the same scripts on every architecture. Tools that hav
 | Behaviour on ppc64le / s390x | Tools |
 |---|---|
 | Skipped (no ppc64le/s390x builds published) | Agentic Workflow Firewall (AWF), Alibaba Cloud CLI, Android SDK, AWS CLI/SAM, AzCopy, Azure CLI, Azure DevOps CLI, Bazel, Bicep, CodeQL bundle, GitHub Copilot CLI, Firefox, GitHub CLI, Google Chrome, Google Cloud CLI, Haskell, Heroku, Homebrew, Microsoft Edge, MS SQL tools, PowerShell, Pulumi, R, SqlPackage, Swift, vcpkg |
-| Installed from the Ubuntu archive instead | CMake, Ninja, PyPy (ppc64le), Ruby (no toolcache versions), .NET SDK 8.0 (from `ppa:dotnet/backports` on 26.04) |
+| Installed from the Ubuntu archive instead | CMake, Ninja, PyPy (ppc64le), Ruby (no toolcache versions), .NET SDK 8.0, 9.0 and 10.0 (Ubuntu archive plus `ppa:dotnet/backports`) |
 | ppc64le only (skipped on s390x) | Julia, Packer, Terraform |
-| Built from source | GitHub Actions runner (latest release patched with `patches/runner-sdk8-<arch>.patch`; if that fails to patch or build, upstream main patched with `patches/runner-main-sdk8-<arch>.patch`), kind |
+| Built from source | GitHub Actions runner (latest release patched with `patches/runner-sdk8-<arch>.patch`; if that fails to patch or build, upstream main patched with `patches/runner-main-sdk8-<arch>.patch`; each is built with the .NET SDK major its own `src/global.json` targets, 8 or 10), kind |
 
 ---
 

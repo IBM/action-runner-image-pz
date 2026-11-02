@@ -4,19 +4,20 @@ FROM    almalinux:9
 ARG     RUNNERREPO="https://github.com/actions/runner" 
 ARG     RUNNERPATCH
 ARG     RUNNERMAINPATCH
-ARG     SDK=8
 ARG     ARCH
 
 RUN     echo "tsflags=nodocs" >>/etc/dnf/dnf.conf
 
+# Both SDKs: the latest release and upstream main may target different .NET majors;
+# build-runner.sh pins the one each ref needs
 RUN     dnf update -y -q && \
         dnf install -y -q \
-            wget git which langpacks-en glibc-all-langpacks sudo shadow-utils tar dotnet-sdk-${SDK}.0 \
+            wget git which langpacks-en glibc-all-langpacks sudo shadow-utils tar dotnet-sdk-8.0 dotnet-sdk-10.0 \
             cmake make automake autoconf m4 gcc gcc-c++ libtool epel-release && \
         dnf clean all && \
         rm -rf /var/cache/dnf/*
 
-RUN     echo "Using SDK - $(dotnet --version)"
+RUN     dotnet --list-sdks
 
 ADD    ${RUNNERPATCH} /tmp/runner.patch
 

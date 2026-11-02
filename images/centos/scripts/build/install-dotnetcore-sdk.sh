@@ -23,7 +23,8 @@ install_dnfpkgs ca-certificates
 
 if [[ "$ARCH" == "ppc64le" || "$ARCH" == "s390x" ]]; then 
     echo "Installing dotnet for architecture: $ARCH"
-    install_dnfpkgs dotnet-sdk-8.0
+    # Both SDKs: the latest runner release and upstream main may target different .NET majors
+    install_dnfpkgs dotnet-sdk-8.0 dotnet-sdk-10.0
 else
     # Install .NET SDKs and Runtimes
     mkdir -p /usr/share/dotnet
