@@ -23,9 +23,7 @@ if [ ! -d "${BUILD_PREREQS_PATH}" ]; then
 fi
 
 if [[ "$IMAGE_OS" == *"ubuntu"* ]]; then
-  msg "Copy the apt and dpkg overrides into gha-builder - these prevent doc files from being installed"
-  cp -r "${BUILD_PREREQS_PATH}/assets/99synaptics" "/etc/apt/apt.conf.d/99synaptics"
-  chmod -R 0644 /etc/apt/apt.conf.d/99synaptics
+  msg "Copy the dpkg override into gha-builder - this prevents doc files from being installed"
   cp -r "${BUILD_PREREQS_PATH}/assets/01-nodoc" "/etc/dpkg/dpkg.cfg.d/01-nodoc"
   chmod -R 0644 /etc/dpkg/dpkg.cfg.d/01-nodoc
 fi

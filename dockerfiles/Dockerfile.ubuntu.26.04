@@ -8,8 +8,6 @@ ARG     ARCH
 
 ENV     DEBIAN_FRONTEND=noninteractive
 
-COPY    ../scripts/assets/99synaptics /etc/apt/apt.conf.d/
-
 COPY    ../scripts/assets/01-nodoc /etc/dpkg/dpkg.cfg.d/
 
 # .NET 8 is not in the Ubuntu 26.04 archive; Canonical publishes it in ppa:dotnet/backports

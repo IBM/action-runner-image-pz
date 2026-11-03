@@ -217,8 +217,7 @@ build_image() {
   msg "Copy the gha-service unit file into gha-builder"
   lxc file push "${BUILD_PREREQS_PATH}/assets/gha-runner.service" "${BUILD_CONTAINER}/etc/systemd/system/gha-runner.service"
 
-  msg "Copy the apt and dpkg overrides into gha-builder - these prevent doc files from being installed"
-  lxc file push --mode 0644 "${BUILD_PREREQS_PATH}/assets/99synaptics" "${BUILD_CONTAINER}/etc/apt/apt.conf.d/99synaptics"
+  msg "Copy the dpkg override into gha-builder - this prevents doc files from being installed"
   lxc file push --mode 0644 "${BUILD_PREREQS_PATH}/assets/01-nodoc" "${BUILD_CONTAINER}/etc/dpkg/dpkg.cfg.d/01-nodoc"
 
   msg "Running setup_install.sh (as root)"
