@@ -16,7 +16,7 @@ index 9c069b12..d26b0dc2 100644
    <!-- Set TRACE/DEBUG vars -->
    <PropertyGroup>
 diff --git a/src/Misc/externals.sh b/src/Misc/externals.sh
-index c385c5ef..f708159e 100755
+index b85b6691..82cb62f2 100755
 --- a/src/Misc/externals.sh
 +++ b/src/Misc/externals.sh
 @@ -187,3 +187,13 @@ fi
@@ -372,4 +372,4 @@ index 056a312e..3f9a3679 100644
          <Exec Command="%22$(DesktopMSBuild)%22 Runner.Service/Windows/RunnerService.csproj /p:Configuration=$(BUILDCONFIG) /p:PackageRuntime=$(PackageRuntime) /p:OutputPath=%22$(MSBuildProjectDirectory)/../_layout/bin%22" ConsoleToMSBuild="true" Condition="'$(PackageRuntime)' == 'win-x64' Or '$(PackageRuntime)' == 'win-x86' Or '$(PackageRuntime)' == 'win-arm64'" />
      </Target>
  
-# From upstream commit: 110142c2c501c6ae9373d553efa826bedbaab5f7
+# From upstream commit: 1ddb758ed014660b5d2220a5dc6b0e9957a9f96b
