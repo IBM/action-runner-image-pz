@@ -444,8 +444,7 @@ build_image() {
   msg "Copy the gha-service unit file into gha-builder"
   incus file push "${BUILD_PREREQS_PATH}/assets/gha-runner.service" "${BUILD_VM}/etc/systemd/system/gha-runner.service"
 
-  msg "Copy the apt and dpkg overrides into gha-builder - these prevent doc files from being installed"
-  incus file push --mode 0644 "${BUILD_PREREQS_PATH}/assets/99synaptics" "${BUILD_VM}/etc/apt/apt.conf.d/99synaptics"
+  msg "Copy the dpkg override into gha-builder - this prevents doc files from being installed"
   incus file push --mode 0644 "${BUILD_PREREQS_PATH}/assets/01-nodoc" "${BUILD_VM}/etc/dpkg/dpkg.cfg.d/01-nodoc"
 
   msg "Running setup_install.sh (as root)"
