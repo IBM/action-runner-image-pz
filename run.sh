@@ -107,6 +107,7 @@ get_os_details() {
     local os_options=()
     case "$env" in
         lxd_container|lxd_vm|incus_container|incus_vm)    os_options=("Ubuntu" "Back");;
+        docker|podman)    os_options=("Ubuntu" "CentOS/AlmaLinux" "RHEL (UBI)" "Back");;
         *)      os_options=("Ubuntu" "CentOS/AlmaLinux" "Back");;
     esac
 
@@ -125,6 +126,12 @@ get_os_details() {
             version=$(select_menu "Select CentOS/AlmaLinux version: " "9" "Back")
             [[ "$version" == "Back" ]] && return 1
             echo "centos $version"
+            ;;
+        "RHEL (UBI)")
+            local version
+            version=$(select_menu "Select RHEL (UBI) version: " "10" "9" "Back")
+            [[ "$version" == "Back" ]] && return 1
+            echo "ubi $version"
             ;;
         "Back")
             return 1

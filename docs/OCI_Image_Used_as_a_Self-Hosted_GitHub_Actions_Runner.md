@@ -31,8 +31,23 @@ sudo ./scripts/podman.sh <os> <version>
 |---|---|---|
 | `ubuntu` | `22.04`, `24.04`, `26.04` | `dockerfiles/Dockerfile.ubuntu.<version>` |
 | `centos` | `9` | `dockerfiles/Dockerfile.centos.9` |
+| `ubi` | `9`, `10` | `dockerfiles/Dockerfile.ubi.<version>` |
 
 The image is tagged `runner:<os>.<version>`, for example `runner:ubuntu.26.04` (Podman shows it as `localhost/runner:ubuntu.26.04`). It contains the GitHub Actions runner, built from source for the host architecture: the latest release with `patches/runner-sdk8-<arch>.patch`, or upstream main with `patches/runner-main-sdk8-<arch>.patch` if the release fails to patch or build (test failures do not trigger this fallback). It is installed in `/opt/runner-cache` and owned by the `runner` user. OCI images always use the minimal setup: the runner plus the tools needed to build it (git, curl, sudo, the .NET 8 SDK and compilers).
+
+#### **RHEL (UBI) Images**
+
+The `ubi` images give workflows a RHEL userspace. They are built from the [Red Hat Universal Base Image](https://catalog.redhat.com/en/software/base-images) and install packages from the public UBI repositories only, so no RHEL subscription is needed, on any Linux host.
+
+| Base image | ppc64le | s390x | x86_64 |
+|---|---|---|---|
+| `ubi9/ubi` | POWER9 or later | z14 or later | x86-64-v2 or later |
+| `ubi10/ubi` | POWER10 or later | z15 or later | x86-64-v3 or later |
+
+- **Build on older hardware with UBI 9.** A UBI 10 image does not run on CPUs below its baseline.
+- **Workflows see the UBI package set.** Steps can install from the UBI repositories with `sudo dnf install`. The full RHEL repositories are available only when the container runs on a subscribed RHEL host, and an image that includes those packages can no longer be redistributed under the UBI terms.
+- **Redistribution.** If you publish an image, the UBI EULA applies to it. See the [UBI FAQ](https://developers.redhat.com/articles/ubi-faq).
+- **Red Hat support.** The image runs on any Linux host, but Red Hat supports UBI containers only on a subscribed RHEL host or OpenShift cluster.
 
 ---
 
