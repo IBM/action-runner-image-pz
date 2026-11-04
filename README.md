@@ -55,14 +55,16 @@ This runner image supports multiple environments on IBM hardware for a seamless 
 
 ### **Supported Operating Systems**
 
-| Environment | Ubuntu 22.04 | Ubuntu 24.04 | Ubuntu 26.04 | CentOS / AlmaLinux 9 |
-|---|---|---|---|---|
-| VM (host machine) | ✓ | ✓ | ✓ | ✓ (minimal only) |
-| LXD Container / LXD VM | ✓ | ✓ | ✓ | – |
-| Incus Container / Incus VM | ✓ ¹ | ✓ | ✓ | – |
-| Docker / Podman | ✓ | ✓ | ✓ | ✓ |
+| Environment | Ubuntu 22.04 | Ubuntu 24.04 | Ubuntu 26.04 | CentOS / AlmaLinux 9 | RHEL (UBI) 9 / 10 |
+|---|---|---|---|---|---|
+| VM (host machine) | ✓ | ✓ | ✓ | ✓ (minimal only) | – |
+| LXD Container / LXD VM | ✓ | ✓ | ✓ | – | – |
+| Incus Container / Incus VM | ✓ ¹ | ✓ | ✓ | – | – |
+| Docker / Podman | ✓ | ✓ | ✓ | ✓ | ✓ ² |
 
 ¹ Ubuntu 22.04 **ppc64le Incus VMs** cannot be built from **Incus Images** (distrobuilder): GRUB 2.06 in 22.04 does not install in the distrobuilder chroot. Use 24.04/26.04, or the **Cloud Images** source.
+
+² Built from the [Red Hat Universal Base Image](https://catalog.redhat.com/en/software/base-images); no RHEL subscription is needed. UBI 10 needs POWER10, z15 or x86-64-v3 and later; use UBI 9 on older hardware. See the [OCI guide](docs/OCI_Image_Used_as_a_Self-Hosted_GitHub_Actions_Runner.md#rhel-ubi-images).
 
 ---
 
@@ -122,8 +124,8 @@ sudo ./scripts/<environment>.sh <os> <version> [worker_type] [worker_cpu] [setup
 
 | Argument | Description |
 |---|---|
-| `os` | `ubuntu` or `centos` |
-| `version` | `22.04`, `24.04`, `26.04` (Ubuntu) or `9` (CentOS) |
+| `os` | `ubuntu`, `centos` or `ubi` (`ubi`: Docker and Podman only) |
+| `version` | `22.04`, `24.04`, `26.04` (Ubuntu), `9` (CentOS) or `9`, `10` (UBI) |
 | `worker_type` | Optional image-name suffix, e.g. `-2xlarge` (pass `""` to skip) |
 | `worker_cpu` | Optional image-name suffix, e.g. `-p10` (pass `""` to skip) |
 | `setup_type` | `minimal` (default) or `complete` |
@@ -180,7 +182,7 @@ Select an option to proceed with the setup.
 
 - **VM (host machine)**: the OS and version are detected from `/etc/os-release` of the host.
 - **LXD / Incus**: Ubuntu `26.04`, `24.04` or `22.04`.
-- **Docker / Podman**: Ubuntu `26.04`, `24.04`, `22.04`, or CentOS/AlmaLinux `9`.
+- **Docker / Podman**: Ubuntu `26.04`, `24.04`, `22.04`, CentOS/AlmaLinux `9`, or RHEL (UBI) `10`, `9`.
 
 ### **Minimal or Complete Setup**
 

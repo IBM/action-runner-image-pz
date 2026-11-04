@@ -2,7 +2,8 @@
 set -e  # Exit on any error
 
 CURRENT_DIR="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
-IMGDIR="${CURRENT_DIR}/../../images/${IMAGE_OS}"
+# UBI images are OCI-only and share the CentOS helpers and toolsets
+IMGDIR="${CURRENT_DIR}/../../images/${IMAGE_OS/#ubi/centos}"
 
 # Check if /imagegeneration already exists, delete if so, and recreate
 # shellcheck disable=SC2154
