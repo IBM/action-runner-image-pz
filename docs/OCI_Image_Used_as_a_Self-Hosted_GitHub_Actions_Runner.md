@@ -48,6 +48,7 @@ The `ubi` images give workflows a RHEL userspace. They are built from the [Red H
 - **Workflows see the UBI package set.** Steps can install from the UBI repositories with `sudo dnf install`. The full RHEL repositories are available only when the container runs on a subscribed RHEL host, and an image that includes those packages can no longer be redistributed under the UBI terms.
 - **Redistribution.** If you publish an image, the UBI EULA applies to it. See the [UBI FAQ](https://developers.redhat.com/articles/ubi-faq).
 - **Red Hat support.** The image runs on any Linux host, but Red Hat supports UBI containers only on a subscribed RHEL host or OpenShift cluster.
+- **`sudo` PAM errors.** See [Troubleshooting](#troubleshooting).
 
 ---
 
@@ -137,3 +138,75 @@ Current runner version: '2.338.0'
 
 #### **GitHub Actions Workflow Status**
 Navigate to the GitHub Actions page for your repository to view workflow execution details.
+
+---
+
+### **Troubleshooting**
+
+#### **`sudo` Fails with a PAM Account Management Error**
+
+A `ubi` or `centos` image can show this error during the build, at the `sudo -u runner /opt/runner-cache/config.sh --version` step, or later, when a workflow step runs `sudo`:
+
+```
+sudo: PAM account management error: Authentication service cannot retrieve authentication info
+sudo: a password is required
+```
+
+**Cause:** the container cannot read `/etc/shadow`, which `sudo` needs for its PAM account check. RHEL-based images ship that file with mode `0000`, so even root needs the `CAP_DAC_OVERRIDE` capability to read it. Podman grants that capability by default, so this points to a host setting that removes it. Ubuntu images use mode `0640`, which root can read as the owner.
+
+| Without `CAP_DAC_OVERRIDE` | `sudo` as root (build step) | `sudo` as `runner` (workflow step) |
+|---|---|---|
+| UBI 9, AlmaLinux 9 | Fails | Fails |
+| UBI 10 | Works | Fails |
+| Ubuntu 24.04 | Works | Works |
+
+**Find the cause.** Run these as the user who ran the failing build. They do not change any Podman settings:
+
+```bash
+cat > /tmp/Containerfile.diag <<'EOF'
+FROM registry.access.redhat.com/ubi9/ubi:latest
+RUN (( 0x$(awk '/CapEff/{print $2}' /proc/self/status) & 2 )) && echo HAS_DAC_OVERRIDE || echo NO_DAC_OVERRIDE; head -c0 /etc/shadow && echo SHADOW_READABLE || echo SHADOW_UNREADABLE
+EOF
+podman build --no-cache -f /tmp/Containerfile.diag "$(mktemp -d)"
+grep -rn default_capabilities /etc/containers /usr/share/containers ~/.config/containers 2>/dev/null
+```
+
+| Output | Meaning | What to do |
+|---|---|---|
+| `NO_DAC_OVERRIDE`, `SHADOW_UNREADABLE` | The capability is missing | Use a fix below |
+| `HAS_DAC_OVERRIDE`, `SHADOW_UNREADABLE` | Something else blocks the read, possibly AppArmor or SELinux | Check `dmesg \| grep -i denied` and adjust that policy |
+| `HAS_DAC_OVERRIDE`, `SHADOW_READABLE` | The container can read the file, so this is a different problem | [Report a bug](https://github.com/IBM/action-runner-image-pz/issues/new?template=bug_report.md) with the output |
+
+**Fix.** Use the first option that fits your host. These steps use Podman.
+
+1. **Restore the capability on the host (recommended).** This fixes both builds and running containers. Set `default_capabilities` in `/etc/containers/containers.conf`, or in `~/.config/containers/containers.conf` for rootless Podman. If the file already sets it, add `"DAC_OVERRIDE"` to the existing list and keep the other entries. Otherwise, use Podman's default list:
+
+    ```toml
+    [containers]
+    default_capabilities = ["CHOWN", "DAC_OVERRIDE", "FOWNER", "FSETID", "KILL", "NET_BIND_SERVICE", "SETFCAP", "SETGID", "SETPCAP", "SETUID", "SYS_CHROOT"]
+    ```
+
+2. **Add the capability per command.** `scripts/podman.sh` does not pass this option, so run the build directly from the repository root, and add the same option when you start the container:
+
+    ```bash
+    podman build --no-cache --cap-add=CAP_DAC_OVERRIDE -f dockerfiles/Dockerfile.ubi.9 \
+        --build-arg RUNNERPATCH="../patches/runner-sdk8-$(uname -m).patch" \
+        --build-arg RUNNERMAINPATCH="../patches/runner-main-sdk8-$(uname -m).patch" \
+        --build-arg ARCH="$(uname -m)" \
+        --tag runner:ubi.9 .
+    podman run --rm --cap-add=CAP_DAC_OVERRIDE runner:ubi.9 sudo -n true
+    ```
+
+3. **Change the image.** Use this only when the host cannot grant the capability, for example when Podman runs inside a container that lacks it. In the Dockerfile, start the step that runs `sudo -u runner` with `chmod 0400 /etc/shadow`:
+
+    ```dockerfile
+    RUN     chmod 0400 /etc/shadow && \
+            mkdir -p /opt/runner-cache && \
+            tar -xf /tmp/runner/_package/*.tar.gz -C /opt/runner-cache && \
+            chown -R runner:runner /opt/runner-cache && \
+            sudo -u runner /opt/runner-cache/config.sh --version
+    ```
+
+    This fixes both builds and workflow steps, but it moves away from the RHEL default: any root process in the container can then read the password hashes, even without the capability.
+
+> **Note:** replacing `sudo -u runner` with `runuser` or `USER runner` is not enough. The build passes, but `sudo` still fails in workflow steps.
