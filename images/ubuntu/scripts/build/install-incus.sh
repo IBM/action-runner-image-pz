@@ -26,7 +26,7 @@ CONFIG_FILE="${CONFIG_FILE:-${REPO_ROOT}/scripts/assets/incus_init_host_${ARCH}.
 
 # Version configuration (can be overridden via environment variables)
 RAFT_VERSION="${RAFT_VERSION:-v0.22.1}"
-INCUS_VERSION="${INCUS_VERSION:-v7.0.1}"
+INCUS_VERSION="${INCUS_VERSION:-v7.0.2}"
 
 # LVM configuration (can be overridden via environment variables)
 USE_LVM="${USE_LVM:-true}"

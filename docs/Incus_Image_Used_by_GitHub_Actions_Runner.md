@@ -17,7 +17,7 @@ Supported: Ubuntu **22.04**, **24.04** and **26.04** images on **ppc64le**, **s3
 
    | Variable | Default | Description |
    |---|---|---|
-   | `INCUS_VERSION` | `v7.0.1` | Incus release tag to build |
+   | `INCUS_VERSION` | `v7.0.2` | Incus release tag to build |
    | `RAFT_VERSION` | `v0.22.1` | raft release tag to build |
    | `USE_LVM` | `true` | Create an LVM storage pool on a loop file |
    | `LVM_LOOP_SIZE` | `200G` | Size of the loop file (`/var/lib/incus/disks/incus-lvm.img`) |
