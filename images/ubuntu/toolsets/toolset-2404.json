@@ -195,7 +195,7 @@
         "components": [
             {
                 "package": "containerd.io",
-                "version": "1.7.27-1"
+                "version": "latest"
             },
             {
                 "package": "docker-ce-cli",
