@@ -32,6 +32,17 @@ curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o $GPG_
 echo "deb [arch=$docker_arch signed-by=$GPG_KEY] $REPO_URL ${os_codename} stable" > $REPO_PATH
 update_dpkgs
 
+# containerd 2.x dropped LimitNOFILE=infinity from containerd.service, so it inherits
+# DefaultLimitNOFILE=65536 (configure-limits.sh). In an unprivileged container runc cannot raise
+# the hard limit, so any `docker run --ulimit nofile=N` with N > 65536 fails with
+# "error setting rlimit type 7: operation not permitted". Restore the 1.7.x value; written
+# before the install so the package's postinst daemon-reload picks it up on first start.
+mkdir -p /etc/systemd/system/containerd.service.d
+cat << EOF > /etc/systemd/system/containerd.service.d/10-limit-nofile.conf
+[Service]
+LimitNOFILE=infinity
+EOF
+
 # Install docker components which available via apt-get
 # Using toolsets keep installation order to install dependencies before the package in order to control versions
 
