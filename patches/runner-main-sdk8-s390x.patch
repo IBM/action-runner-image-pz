@@ -1,8 +1,8 @@
 diff --git a/src/Directory.Build.props b/src/Directory.Build.props
-index 9c069b12..d26b0dc2 100644
+index 5613d3c2..b78cdb6d 100644
 --- a/src/Directory.Build.props
 +++ b/src/Directory.Build.props
-@@ -44,6 +44,12 @@
+@@ -41,6 +41,12 @@
    <PropertyGroup Condition="'$(BUILD_OS)' == 'Linux' AND '$(PackageRuntime)' == 'linux-arm64'">
      <DefineConstants>$(DefineConstants);ARM64</DefineConstants>
    </PropertyGroup>
@@ -16,24 +16,21 @@ index 9c069b12..d26b0dc2 100644
    <!-- Set TRACE/DEBUG vars -->
    <PropertyGroup>
 diff --git a/src/Misc/externals.sh b/src/Misc/externals.sh
-index b85b6691..82cb62f2 100755
+index 38e97cf1..d1956c83 100755
 --- a/src/Misc/externals.sh
 +++ b/src/Misc/externals.sh
-@@ -187,3 +187,13 @@ fi
- if [[ "$PACKAGERUNTIME" == "linux-arm" ]]; then
-     acquireExternalTool "$NODE_URL/v${NODE20_VERSION}/node-v${NODE20_VERSION}-linux-armv7l.tar.gz" node20 fix_nested_dir
+@@ -172,3 +172,11 @@ fi
+ if [[ "$PACKAGERUNTIME" == "linux-arm64" ]]; then
+     acquireExternalTool "$NODE_URL/v${NODE24_VERSION}/node-v${NODE24_VERSION}-linux-arm64.tar.gz" node24 fix_nested_dir
  fi
 +
 +if [[ "$PACKAGERUNTIME" == "linux-ppc64le" ]]; then
-+    acquireExternalTool "$NODE_URL/v${NODE20_VERSION}/node-v${NODE20_VERSION}-linux-ppc64le.tar.gz" node20 fix_nested_dir
 +    acquireExternalTool "$NODE_URL/v${NODE24_VERSION}/node-v${NODE24_VERSION}-linux-ppc64le.tar.gz" node24 fix_nested_dir
 +fi
 +
 +if [[ "$PACKAGERUNTIME" == "linux-s390x" ]]; then
-+    acquireExternalTool "$NODE_URL/v${NODE20_VERSION}/node-v${NODE20_VERSION}-linux-s390x.tar.gz" node20 fix_nested_dir
 +    acquireExternalTool "$NODE_URL/v${NODE24_VERSION}/node-v${NODE24_VERSION}-linux-s390x.tar.gz" node24 fix_nested_dir
 +fi
-\ No newline at end of file
 diff --git a/src/Misc/layoutroot/config.sh b/src/Misc/layoutroot/config.sh
 index 14cc6bab..c8ed8b92 100755
 --- a/src/Misc/layoutroot/config.sh
@@ -86,7 +83,7 @@ index 14cc6bab..c8ed8b92 100755
  
      if ! [ -x "$(command -v ldconfig)" ]; then
 diff --git a/src/Runner.Common/Constants.cs b/src/Runner.Common/Constants.cs
-index 3c9a1768..44083c86 100644
+index 4d48cc36..88933e22 100644
 --- a/src/Runner.Common/Constants.cs
 +++ b/src/Runner.Common/Constants.cs
 @@ -59,7 +59,9 @@ namespace GitHub.Runner.Common
@@ -112,13 +109,13 @@ index 3c9a1768..44083c86 100644
              public static readonly Architecture PlatformArchitecture = Architecture.X64;
  #endif
 diff --git a/src/Runner.Common/Runner.Common.csproj b/src/Runner.Common/Runner.Common.csproj
-index 54b62511..4047c2f9 100644
+index 7e80eea9..aa0b0240 100644
 --- a/src/Runner.Common/Runner.Common.csproj
 +++ b/src/Runner.Common/Runner.Common.csproj
 @@ -4,6 +4,10 @@
      <TargetFramework>net8.0</TargetFramework>
      <OutputType>Library</OutputType>
-     <RuntimeIdentifiers>win-x64;win-x86;linux-x64;linux-arm64;linux-arm;osx-x64;osx-arm64;win-arm64</RuntimeIdentifiers>
+     <RuntimeIdentifiers>win-x64;win-x86;linux-x64;linux-arm64;osx-x64;osx-arm64;win-arm64</RuntimeIdentifiers>
 +    <SelfContained>true</SelfContained>
 +    <SelfContained Condition="'$(PackageRuntime)' == 'linux-s390x'">false</SelfContained>
 +    <SelfContained Condition="'$(PackageRuntime)' == 'linux-ppc64le'">false</SelfContained>
@@ -142,12 +139,12 @@ index 97273a1a..78f78701 100644
                          throw new NotSupportedException(); // Should never reach here.
                  }
 diff --git a/src/Runner.Listener/Runner.Listener.csproj b/src/Runner.Listener/Runner.Listener.csproj
-index b5325000..460bc47b 100644
+index a8f15dea..174170e4 100644
 --- a/src/Runner.Listener/Runner.Listener.csproj
 +++ b/src/Runner.Listener/Runner.Listener.csproj
 @@ -5,6 +5,9 @@
      <OutputType>Exe</OutputType>
-     <RuntimeIdentifiers>win-x64;win-x86;linux-x64;linux-arm64;linux-arm;osx-x64;osx-arm64;win-arm64</RuntimeIdentifiers>
+     <RuntimeIdentifiers>win-x64;win-x86;linux-x64;linux-arm64;osx-x64;osx-arm64;win-arm64</RuntimeIdentifiers>
      <SelfContained>true</SelfContained>
 +    <SelfContained Condition="'$(PackageRuntime)' == 'linux-s390x'">false</SelfContained>
 +    <SelfContained Condition="'$(PackageRuntime)' == 'linux-ppc64le'">false</SelfContained>
@@ -156,12 +153,12 @@ index b5325000..460bc47b 100644
      <NoWarn>NU1701;NU1603;SYSLIB0050;SYSLIB0051</NoWarn>
      <Version>$(Version)</Version>
 diff --git a/src/Runner.PluginHost/Runner.PluginHost.csproj b/src/Runner.PluginHost/Runner.PluginHost.csproj
-index 81a8d2e4..d50bf39b 100644
+index 51ee3ce4..8ca02182 100644
 --- a/src/Runner.PluginHost/Runner.PluginHost.csproj
 +++ b/src/Runner.PluginHost/Runner.PluginHost.csproj
 @@ -5,6 +5,9 @@
      <OutputType>Exe</OutputType>
-     <RuntimeIdentifiers>win-x64;win-x86;linux-x64;linux-arm64;linux-arm;osx-x64;osx-arm64;win-arm64</RuntimeIdentifiers>
+     <RuntimeIdentifiers>win-x64;win-x86;linux-x64;linux-arm64;osx-x64;osx-arm64;win-arm64</RuntimeIdentifiers>
      <SelfContained>true</SelfContained>
 +    <SelfContained Condition="'$(PackageRuntime)' == 'linux-s390x'">false</SelfContained>
 +    <SelfContained Condition="'$(PackageRuntime)' == 'linux-ppc64le'">false</SelfContained>
@@ -170,12 +167,12 @@ index 81a8d2e4..d50bf39b 100644
      <NoWarn>NU1701;NU1603;SYSLIB0050;SYSLIB0051</NoWarn>
      <Version>$(Version)</Version>
 diff --git a/src/Runner.Plugins/Runner.Plugins.csproj b/src/Runner.Plugins/Runner.Plugins.csproj
-index a786cf1c..1a7cf064 100644
+index 1ddd57eb..79b27326 100644
 --- a/src/Runner.Plugins/Runner.Plugins.csproj
 +++ b/src/Runner.Plugins/Runner.Plugins.csproj
 @@ -5,6 +5,9 @@
      <OutputType>Library</OutputType>
-     <RuntimeIdentifiers>win-x64;win-x86;linux-x64;linux-arm64;linux-arm;osx-x64;osx-arm64;win-arm64</RuntimeIdentifiers>
+     <RuntimeIdentifiers>win-x64;win-x86;linux-x64;linux-arm64;osx-x64;osx-arm64;win-arm64</RuntimeIdentifiers>
      <SelfContained>true</SelfContained>
 +    <SelfContained Condition="'$(PackageRuntime)' == 'linux-s390x'">false</SelfContained>
 +    <SelfContained Condition="'$(PackageRuntime)' == 'linux-ppc64le'">false</SelfContained>
@@ -184,12 +181,12 @@ index a786cf1c..1a7cf064 100644
      <NoWarn>NU1701;NU1603;SYSLIB0050;SYSLIB0051</NoWarn>
      <Version>$(Version)</Version>
 diff --git a/src/Runner.Sdk/Runner.Sdk.csproj b/src/Runner.Sdk/Runner.Sdk.csproj
-index 70c98913..0f130292 100644
+index 87e03ebb..c84736cd 100644
 --- a/src/Runner.Sdk/Runner.Sdk.csproj
 +++ b/src/Runner.Sdk/Runner.Sdk.csproj
 @@ -5,6 +5,9 @@
      <OutputType>Library</OutputType>
-     <RuntimeIdentifiers>win-x64;win-x86;linux-x64;linux-arm64;linux-arm;osx-x64;osx-arm64;win-arm64</RuntimeIdentifiers>
+     <RuntimeIdentifiers>win-x64;win-x86;linux-x64;linux-arm64;osx-x64;osx-arm64;win-arm64</RuntimeIdentifiers>
      <SelfContained>true</SelfContained>
 +    <SelfContained Condition="'$(PackageRuntime)' == 'linux-s390x'">false</SelfContained>
 +    <SelfContained Condition="'$(PackageRuntime)' == 'linux-ppc64le'">false</SelfContained>
@@ -198,12 +195,12 @@ index 70c98913..0f130292 100644
      <NoWarn>NU1701;NU1603;SYSLIB0050;SYSLIB0051</NoWarn>
      <Version>$(Version)</Version>
 diff --git a/src/Runner.Worker/Runner.Worker.csproj b/src/Runner.Worker/Runner.Worker.csproj
-index 2ed4f423..c8860b30 100644
+index f1f1fa87..ecef5d1c 100644
 --- a/src/Runner.Worker/Runner.Worker.csproj
 +++ b/src/Runner.Worker/Runner.Worker.csproj
 @@ -5,6 +5,9 @@
      <OutputType>Exe</OutputType>
-     <RuntimeIdentifiers>win-x64;win-x86;linux-x64;linux-arm64;linux-arm;osx-x64;osx-arm64;win-arm64</RuntimeIdentifiers>
+     <RuntimeIdentifiers>win-x64;win-x86;linux-x64;linux-arm64;osx-x64;osx-arm64;win-arm64</RuntimeIdentifiers>
      <SelfContained>true</SelfContained>
 +    <SelfContained Condition="'$(PackageRuntime)' == 'linux-s390x'">false</SelfContained>
 +    <SelfContained Condition="'$(PackageRuntime)' == 'linux-ppc64le'">false</SelfContained>
@@ -212,13 +209,13 @@ index 2ed4f423..c8860b30 100644
      <NoWarn>NU1701;NU1603;SYSLIB0050;SYSLIB0051</NoWarn>
      <Version>$(Version)</Version>
 diff --git a/src/Sdk/Sdk.csproj b/src/Sdk/Sdk.csproj
-index 13a8cf7a..a826f65c 100644
+index 4cde51e7..9b2b002b 100644
 --- a/src/Sdk/Sdk.csproj
 +++ b/src/Sdk/Sdk.csproj
 @@ -4,7 +4,10 @@
          <TargetFramework>net8.0</TargetFramework>
          <OutputType>Library</OutputType>
-         <RuntimeIdentifiers>win-x64;win-x86;linux-x64;linux-arm64;linux-arm;osx-x64;osx-arm64;win-arm64</RuntimeIdentifiers>
+         <RuntimeIdentifiers>win-x64;win-x86;linux-x64;linux-arm64;osx-x64;osx-arm64;win-arm64</RuntimeIdentifiers>
 -        <!-- <SelfContained>true</SelfContained> -->
 +        <SelfContained>true</SelfContained>
 +        <SelfContained Condition="'$(PackageRuntime)' == 'linux-s390x'">false</SelfContained>
@@ -228,12 +225,12 @@ index 13a8cf7a..a826f65c 100644
          <NoWarn>NU1701;NU1603;SYSLIB0050;SYSLIB0051</NoWarn>
          <Version>$(Version)</Version>
 diff --git a/src/Test/L0/ConstantGenerationL0.cs b/src/Test/L0/ConstantGenerationL0.cs
-index 4ff2dbb3..251be20f 100644
+index e4dda744..0fd0b12b 100644
 --- a/src/Test/L0/ConstantGenerationL0.cs
 +++ b/src/Test/L0/ConstantGenerationL0.cs
-@@ -20,6 +20,8 @@ namespace GitHub.Runner.Common.Tests
+@@ -19,6 +19,8 @@ namespace GitHub.Runner.Common.Tests
+                 "win-arm64",
                  "linux-x64",
-                 "linux-arm",
                  "linux-arm64",
 +                "linux-ppc64le",
 +                "linux-s390x",
@@ -276,26 +273,32 @@ index a91e1127..0a982cac 100644
  using System.Collections.Generic;
  using System.IO;
 diff --git a/src/Test/L0/Worker/StepHostL0.cs b/src/Test/L0/Worker/StepHostL0.cs
-index bac7d41d..d924f65d 100644
+index d2cb1906..f561827b 100644
 --- a/src/Test/L0/Worker/StepHostL0.cs
 +++ b/src/Test/L0/Worker/StepHostL0.cs
-@@ -31,7 +31,7 @@ namespace GitHub.Runner.Common.Tests.Worker
+@@ -31,6 +31,7 @@ namespace GitHub.Runner.Common.Tests.Worker
              return hc;
          }
  
--#if OS_LINUX
-+#if OS_LINUX && !PPC64LE && !S390X && !X64
-         [Fact]
++#if !PPC64LE && !S390X && !X64
+         [Theory]
          [Trait("Level", "L0")]
          [Trait("Category", "Worker")]
+@@ -104,5 +105,6 @@ namespace GitHub.Runner.Common.Tests.Worker
+                 Environment.SetEnvironmentVariable(Constants.Hooks.ContainerHooksPath, originalHooksPath);
+             }
+         }
++#endif
+     }
+ }
 diff --git a/src/Test/Test.csproj b/src/Test/Test.csproj
-index 5ad39f3c..183f5ab7 100644
+index e4ce9293..3c66fbbf 100644
 --- a/src/Test/Test.csproj
 +++ b/src/Test/Test.csproj
 @@ -2,6 +2,10 @@
      <PropertyGroup>
          <TargetFramework>net8.0</TargetFramework>
-         <RuntimeIdentifiers>win-x64;win-x86;linux-x64;linux-arm64;linux-arm;osx-x64;osx-arm64;win-arm64</RuntimeIdentifiers>
+         <RuntimeIdentifiers>win-x64;win-x86;linux-x64;linux-arm64;osx-x64;osx-arm64;win-arm64</RuntimeIdentifiers>
 +        <SelfContained>true</SelfContained>
 +        <SelfContained Condition="'$(PackageRuntime)' == 'linux-s390x'">false</SelfContained>
 +        <SelfContained Condition="'$(PackageRuntime)' == 'linux-ppc64le'">false</SelfContained>
@@ -304,28 +307,28 @@ index 5ad39f3c..183f5ab7 100644
          <NoWarn>NU1701;NU1603;NU1603;xUnit2013;SYSLIB0050;SYSLIB0051</NoWarn>
      </PropertyGroup>
 diff --git a/src/dev.sh b/src/dev.sh
-index e4e8d10d..073026fe 100755
+index 3027a62a..6b2cd222 100755
 --- a/src/dev.sh
 +++ b/src/dev.sh
-@@ -54,6 +54,8 @@ elif [[ "$CURRENT_PLATFORM" == 'linux' ]]; then
-         case $CPU_NAME in
-             armv7l) RUNTIME_ID="linux-arm";;
+@@ -57,6 +57,8 @@ elif [[ "$CURRENT_PLATFORM" == 'linux' ]]; then
+                 exit 1
+                 ;;
              aarch64) RUNTIME_ID="linux-arm64";;
 +            ppc64le) RUNTIME_ID="linux-ppc64le";;
 +            s390x) RUNTIME_ID="linux-s390x";;
          esac
      fi
  elif [[ "$CURRENT_PLATFORM" == 'darwin' ]]; then
-@@ -80,7 +82,7 @@ if [[ "$CURRENT_PLATFORM" == 'windows' ]]; then
+@@ -83,7 +85,7 @@ if [[ "$CURRENT_PLATFORM" == 'windows' ]]; then
          exit 1
      fi
  elif [[ "$CURRENT_PLATFORM" == 'linux' ]]; then
--    if [[ ("$RUNTIME_ID" != 'linux-x64') && ("$RUNTIME_ID" != 'linux-x86') && ("$RUNTIME_ID" != 'linux-arm64') && ("$RUNTIME_ID" != 'linux-arm') ]]; then
-+    if [[ ("$RUNTIME_ID" != 'linux-x64') && ("$RUNTIME_ID" != 'linux-x86') && ("$RUNTIME_ID" != 'linux-arm64') && ("$RUNTIME_ID" != 'linux-arm')  && ("$RUNTIME_ID" != 'linux-ppc64le') && ("$RUNTIME_ID" != 'linux-s390x') ]]; then
+-    if [[ ("$RUNTIME_ID" != 'linux-x64') && ("$RUNTIME_ID" != 'linux-x86') && ("$RUNTIME_ID" != 'linux-arm64') ]]; then
++    if [[ ("$RUNTIME_ID" != 'linux-x64') && ("$RUNTIME_ID" != 'linux-x86') && ("$RUNTIME_ID" != 'linux-arm64')  && ("$RUNTIME_ID" != 'linux-ppc64le') && ("$RUNTIME_ID" != 'linux-s390x') ]]; then
         echo "Failed: Can't build $RUNTIME_ID package $CURRENT_PLATFORM" >&2
         exit 1
      fi
-@@ -199,8 +201,7 @@ function package ()
+@@ -202,8 +204,7 @@ function package ()
      popd > /dev/null
  }
  
@@ -335,7 +338,7 @@ index e4e8d10d..073026fe 100755
  
      # Download dotnet SDK to ../_dotnetsdk directory
      heading "Ensure Dotnet SDK"
-@@ -225,8 +226,10 @@ if [[ (! -d "${DOTNETSDK_INSTALLDIR}") || (! -e "${DOTNETSDK_INSTALLDIR}/.${DOTN
+@@ -228,8 +229,10 @@ if [[ (! -d "${DOTNETSDK_INSTALLDIR}") || (! -e "${DOTNETSDK_INSTALLDIR}/.${DOTN
      echo "${DOTNETSDK_VERSION}" > "${DOTNETSDK_INSTALLDIR}/.${DOTNETSDK_VERSION}"
  fi
  
@@ -372,4 +375,4 @@ index 056a312e..3f9a3679 100644
          <Exec Command="%22$(DesktopMSBuild)%22 Runner.Service/Windows/RunnerService.csproj /p:Configuration=$(BUILDCONFIG) /p:PackageRuntime=$(PackageRuntime) /p:OutputPath=%22$(MSBuildProjectDirectory)/../_layout/bin%22" ConsoleToMSBuild="true" Condition="'$(PackageRuntime)' == 'win-x64' Or '$(PackageRuntime)' == 'win-x86' Or '$(PackageRuntime)' == 'win-arm64'" />
      </Target>
  
-# From upstream commit: 01e888680892c6f31f5f9617c606505db6b4cfc7
+# From upstream commit: 8cfa1049f86781d141056082d73802d56cd2b433
