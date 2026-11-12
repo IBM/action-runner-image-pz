@@ -71,7 +71,7 @@ jobs:
       id: process-arches
       run: |
         mkdir -p patches
-        touch successful_arches.txt
+        touch successful_arches.txt failed_arches.txt
         
         for arch in ppc64le s390x x86_64; do
           echo "Processing $arch..."
@@ -86,6 +86,7 @@ jobs:
              ! grep -q "${{ steps.get-commits.outputs.PREVIOUS_COMMIT }}" "../patches/runner-main-sdk8-$arch.patch"; then
             echo "No valid previous patch for $arch"
             cd ..
+            echo "$arch" >> failed_arches.txt
             continue
           fi
 
@@ -94,6 +95,7 @@ jobs:
           if ! git apply --check --whitespace=nowarn "../patches/runner-main-sdk8-$arch.patch"; then
             echo "::warning::Previous patch application failed for $arch"
             cd ..
+            echo "$arch" >> failed_arches.txt
             continue
           fi
           git apply --whitespace=nowarn "../patches/runner-main-sdk8-$arch.patch"
@@ -108,6 +110,7 @@ jobs:
             git reset --hard
             git stash drop || true
             cd ..
+            echo "$arch" >> failed_arches.txt
             continue
           fi
           
@@ -127,6 +130,9 @@ jobs:
         if [ -s successful_arches.txt ]; then
           echo "successful_arches=$(paste -sd, successful_arches.txt)" >> $GITHUB_OUTPUT
         fi
+        if [ -s failed_arches.txt ]; then
+          echo "failed_arches=$(paste -sd, failed_arches.txt)" >> $GITHUB_OUTPUT
+        fi
 
     - name: Update commit reference
       if: steps.process-arches.outputs.successful_arches != ''
@@ -141,3 +147,10 @@ jobs:
         git commit -m "Update patches: ${{ steps.get-commits.outputs.PREVIOUS_COMMIT_SHORT }} → ${{ steps.get-commits.outputs.LATEST_COMMIT_SHORT }} [${{ steps.process-arches.outputs.successful_arches }}]"
         git pull --rebase origin $(git branch --show-current)
         git push
+
+    # Conflicts need a manual rebase of the patch; fail so the run goes red instead of silently skipping.
+    - name: Fail if any architecture was not updated
+      if: steps.process-arches.outputs.failed_arches != ''
+      run: |
+        echo "::error::Could not rebase patches onto ${{ steps.get-commits.outputs.LATEST_COMMIT_SHORT }} for: ${{ steps.process-arches.outputs.failed_arches }}. Rebase the patch manually (see warnings above)."
+        exit 1
